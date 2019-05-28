@@ -9,9 +9,19 @@ a LSTM-based sequence decoder to decode the word sense in the given context
 '''
 class Decoder(nn.Module):
 
-	def __init__(self, embed_size, hidden_size, vocab_size, num_layers, dropout, max_seq_length, device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
+	def __init__(self, 
+				embed_size = 256, 
+				hidden_size = 300, # the same as the output_size of the encoder
+				vocab_size, # TODO: vocab
+				num_layers = 1, # 1 layer LSTM for decoder
+				dropout = 0, 
+				max_seq_length = 15, # max length of definition generated is 15
+				teacher_forcing, # the probability of using ground truth in decoding
+				device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
 
 		"""Build the layers in the decoder."""
+		# TODO: add vocab
+
 		super(Decoder, self).__init__()
 
 		self.dropout = dropout
@@ -29,6 +39,9 @@ class Decoder(nn.Module):
 
 		# max length of sense used during decoding
 		self.max_seg_length = max_seq_length 
+
+		# the probability of using the ground truth during decoding
+		self.teacher_forcing = teacher_forcing
 		
 	def forward(self, word_index, hidden, cell):
 		'''

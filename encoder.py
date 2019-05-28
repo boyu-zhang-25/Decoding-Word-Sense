@@ -30,7 +30,7 @@ class Encoder(nn.Module):
 				lstm_hidden_size = 256,
 				MLP_sizes = [512], # 1 hidden layer for fine-tuning sense vector
 				device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
-		super().__init__()
+		super(Encoder, self).__init__()
 		
 		# all senses for all words
 		# useful for all purposes

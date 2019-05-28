@@ -2,8 +2,6 @@ import sys
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import pandas as pd
-import numpy as np
 import math
 from collections import Iterable, defaultdict
 import itertools
@@ -21,7 +19,7 @@ And wn.synset('spring.n.02').lexname() returns 'noun.artifact'
 '''
 the encoder to encode the target word sense in the given context
 '''
-class encoder(nn.Module):
+class Encoder(nn.Module):
 	def __init__(self, 
 				all_senses = None,
 				output_size = 300, # output size of each sense vector [300, 1]
@@ -155,7 +153,7 @@ class encoder(nn.Module):
 		# print(word_embedding)
 
 		# Run fine-tuning MLP on new word embedding and get sense embedding
-		sense_embedding = self._run_fine_tune_MLP(word_embedding, word_lemma)
+		sense_embedding = self._run_fine_tune_MLP(word_embedding, word_lemma, param = "word_sense")
 		sense_embedding = sense_embedding.view(1, -1)
 
 		# print('223: {}'.format(sense_embedding.requires_grad))
@@ -167,14 +165,15 @@ class encoder(nn.Module):
 	def _tune_embeddings(self, embedding):
 		return torch.tanh(self.dimension_reduction_MLP(embedding))
 	
-	def _run_fine_tune_MLP(self, word_embedding, word_lemma):
+	def _run_fine_tune_MLP(self, word_embedding, word_lemma, param = "word_sense"):
 		
 		'''
 		Runs MLP on the target word embedding
 		'''
-		for layer in self.layers[param]:
-			word_embedding = layer(word_embedding)
-			# print('253 loop: {}'.format(word_embedding.requires_grad))
+		for i, layer in enumerate(self.layers[param]):
+			if i:
+				word_embedding = layer(word_embedding)
+				word_embedding = self.mlp_dropout(word_embedding)
 
 		# print('\nWord lemma: {}\nWord sense embedding size: {}\nAll its senses: {}'.format(word_lemma, word_embedding.size(), self.all_senses[word_lemma]))
 		return word_embedding

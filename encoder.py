@@ -24,7 +24,6 @@ the encoder to encode the target word sense in the given context
 class encoder(nn.Module):
 	def __init__(self, 
 				all_senses = None,
-				all_supersenses = None,
 				output_size = 300, # output size of each sense vector [300, 1]
 				embedding_size = 1024, # ELMo embedding size
 				elmo_class = None,
@@ -35,10 +34,9 @@ class encoder(nn.Module):
 				device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
 		super().__init__()
 		
-		# all senses and all definitions for all words
+		# all senses for all words
 		# useful for all purposes
 		self.all_senses = all_senses
-		self.all_supersenses = all_supersenses
 		self.elmo_class = elmo_class
 		self.device = device
 
@@ -60,60 +58,11 @@ class encoder(nn.Module):
 		self.dimension_reduction_MLP = nn.Linear(self.embedding_size * 3, self.tuned_embed_size).to(self.device)
 
 		# construct a LSTM on top of ELMo
-		self.wsd_lstm = nn.LSTM(self.tuned_embed_size, self.lstm_hidden_size, num_layers = 2, bidirectional = True).to(self.device)
+		self.lstm = nn.LSTM(self.tuned_embed_size, self.lstm_hidden_size, num_layers = 2, bidirectional = True).to(self.device)
 
 		# build a 2-layer MLP on top of LSTM for fine-tuning
 		self._init_MLP(self.tuned_embed_size * 2, self.MLP_sizes, self.output_size, param = "word_sense")
 
-		# randomly initialize all vectors for definition embedding
-		def_dict = self._init_definition_embeddings(self.output_size)
-		self.definition_embeddings = nn.ParameterDict(def_dict)
-		# self.definition_embeddings = nn.ParameterDict(def_dict)
-
-		# initiate all the supersense embeddings
-		super_dict = self._init_supersense_embeddings(self.output_size)
-		self.supersense_embeddings = nn.ParameterDict(super_dict)
-
-	# initialize all the definition embeddings for all words
-	# put into a matrix for each word
-	def _init_definition_embeddings(self, output_size):
-
-		def_dict = {}
-
-		for word in self.all_senses.keys():
-
-			# construct definitionn embeddings and put in a matrix
-			def_tuple = tuple([torch.randn(output_size, 1) for m in range(len(self.all_senses[word]))])
-			def_matrix = nn.Parameter(torch.cat(def_tuple, 1), requires_grad = True)
-			def_dict[word] = def_matrix
-
-		return def_dict
-
-	# initialize all the supersense embeddings 
-	def _init_supersense_embeddings(self, output_size):
-
-		super_dict = {}
-
-		for supersense, tuple_set in self.all_supersenses.items():
-
-			# super sense vector is initialized as the mean of all its children
-			supersense_vec = torch.zeros(output_size, 1)
-			for super_tuple in tuple_set:
-
-				# remove the underscore
-				word_lemma = super_tuple[0]
-				word_sense = super_tuple[1]
-				index = self.all_senses[word_lemma].index(word_sense)
-
-				# print(self.definition_embeddings[word_lemma][:, index].size())
-				supersense_vec += self.definition_embeddings[word_lemma][:, index].view(output_size, -1)
-
-			# supersense embeddings are initialized as the mean of all its children
-			supersense_vec = supersense_vec / len(tuple_set)
-			super_dict[supersense] = nn.Parameter(supersense_vec, requires_grad = True)
-
-		# print('done')
-		return super_dict
 
 	def _init_MLP(self, input_size, hidden_sizes, output_size, param = None):
 		'''
@@ -176,7 +125,7 @@ class encoder(nn.Module):
 		# print('132: {}'.format(embedding.requires_grad))
 		
 		# [sentence_length, batch_size, 256]
-		embedding = self._tune_embeddings(embedding, param = 'word_sense')
+		embedding = self._tune_embeddings(embedding)
 		# print('139: {}'.format(embedding.requires_grad))
 		# print('em require: {}'.format(embedding.requires_grad))
 
@@ -196,8 +145,8 @@ class encoder(nn.Module):
 
 		# Run a Bi-LSTM and get the sense embedding
 		# (seq_len, batch, num_directions * hidden_size)
-		self.wsd_lstm.flatten_parameters()
-		embedding_new, (hn, cn) = self.wsd_lstm(embedding)
+		self.lstm.flatten_parameters()
+		embedding_new, (hn, cn) = self.lstm(embedding)
 		# print('213: {}'.format(embedding_new.requires_grad))
 
 		# Extract the new word embedding by index
@@ -206,7 +155,7 @@ class encoder(nn.Module):
 		# print(word_embedding)
 
 		# Run fine-tuning MLP on new word embedding and get sense embedding
-		sense_embedding = self._run_fine_tune_MLP(word_embedding, word_lemma, param = 'word_sense')
+		sense_embedding = self._run_fine_tune_MLP(word_embedding, word_lemma)
 		sense_embedding = sense_embedding.view(1, -1)
 
 		# print('223: {}'.format(sense_embedding.requires_grad))
@@ -215,14 +164,10 @@ class encoder(nn.Module):
 
 
 	# 3 * 1024 -> 256 by dimension reduction
-	def _tune_embeddings(self, embedding, param = None):
-
-		if param == 'definition':
-			return torch.tanh(self.encode_dimension_reduction(embedding))
-		else:
-			return torch.tanh(self.dimension_reduction_MLP(embedding))
+	def _tune_embeddings(self, embedding):
+		return torch.tanh(self.dimension_reduction_MLP(embedding))
 	
-	def _run_fine_tune_MLP(self, word_embedding, word_lemma, param = None):
+	def _run_fine_tune_MLP(self, word_embedding, word_lemma):
 		
 		'''
 		Runs MLP on the target word embedding

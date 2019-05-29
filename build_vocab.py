@@ -20,8 +20,8 @@ Which returns 'noun.time'.
 And wn.synset('spring.n.02').lexname() returns 'noun.artifact'
 '''
 
-
 class Vocabulary(object):
+
 	"""Simple vocabulary wrapper."""
 	def __init__(self):
 		self.word2idx = {}
@@ -63,7 +63,7 @@ def build_vocab(threshold):
 		# s.translate(str.maketrans('', '', string.punctuation))
 		# nltk.tokenize.word_tokenize(wn.synset('dog.n.01').definition())
 		def_tokens = nltk.tokenize.word_tokenize(definition.lower())
-		counter.update(tokens)
+		counter.update(def_tokens)
 
 		i = i + 1
 		if i % 1000 == 0:
@@ -82,6 +82,8 @@ def build_vocab(threshold):
 	# Add the words to the vocabulary.
 	for i, word in enumerate(words):
 		vocab.add_word(word)
+
+	print("Total vocabulary size: {}".format(vocab.idx))
 	return vocab
 
 def main(args):
@@ -89,7 +91,6 @@ def main(args):
 	vocab_path = args.vocab_path
 	with open(vocab_path, 'wb') as f:
 		pickle.dump(vocab, f)
-	print("Total vocabulary size: {}".format(len(vocab)))
 	print("Saved the vocabulary wrapper to '{}'".format(vocab_path))
 
 
@@ -98,7 +99,7 @@ if __name__ == '__main__':
 
 	parser.add_argument('--vocab_path', type = str, default = './data/vocab.pkl', 
 						help = 'path for saving vocabulary wrapper')
-	parser.add_argument('--threshold', type = int, default = 4, 
+	parser.add_argument('--threshold', type = int, default = 0, 
 						help = 'minimum word count threshold')
 	args = parser.parse_args()
 	main(args)

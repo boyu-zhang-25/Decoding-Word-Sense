@@ -8,15 +8,6 @@ import itertools
 from nltk.corpus import wordnet as wn
 
 '''
-The specific Synset method is lexname, e.g. wn.synsets('spring')[0].lexname(). 
-That should make it really easy to get the suspersenses.
-And if you have the synset name–e.g. 'spring.n.01'
-you can access the supersense directly: wn.synset('spring.n.01').lexname().
-Which returns 'noun.time'.
-And wn.synset('spring.n.02').lexname() returns 'noun.artifact'
-'''
-
-'''
 the encoder to encode the target word sense in the given context
 '''
 class Encoder(nn.Module):
@@ -170,10 +161,9 @@ class Encoder(nn.Module):
 		'''
 		Runs MLP on the target word embedding
 		'''
-		for i, layer in enumerate(self.layers[param]):
-			if i:
-				word_embedding = layer(word_embedding)
-				word_embedding = self.mlp_dropout(word_embedding)
+		for layer in self.layers[param]:
+			word_embedding = layer(word_embedding)
+			word_embedding = self.mlp_dropout(word_embedding)
 
 		# print('\nWord lemma: {}\nWord sense embedding size: {}\nAll its senses: {}'.format(word_lemma, word_embedding.size(), self.all_senses[word_lemma]))
 		return word_embedding

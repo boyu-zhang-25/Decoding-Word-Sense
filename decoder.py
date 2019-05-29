@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import numpy as np
 import math
-from nltk.corpus import wordnet as wn
 
 '''
 a LSTM-based sequence decoder to decode the word sense in the given context

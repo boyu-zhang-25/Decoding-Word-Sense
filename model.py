@@ -6,7 +6,6 @@ import math
 from collections import Iterable, defaultdict
 import itertools
 import random
-from nltk.corpus import wordnet as wn
 from encoder import *
 from decoder import *
 
@@ -92,7 +91,7 @@ class Model(nn.Module):
 			output, hidden, cell = self.decoder(sense_embedding, hidden, cell)
 			outputs[t] = output
 
-			# get the max word from the vocabulary
+			# get the max word index from the vocabulary
 			generated_index = output.max(1)[1]
 
 			# may use the correct word from the definition

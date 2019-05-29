@@ -187,3 +187,11 @@ def dev_loss(self, dev_X, dev_Y, dev_idx):
 		dev_losses.append(dev_loss)
 
 	return dev_losses
+
+best_model_file =  file_path + "word_sense_model_.pth"
+
+# loss for the decoder
+# ignore the padding
+# TODO: add vocab	
+loss = nn.CrossEntropyLoss(ignore_index = PAD_IDX)
+

@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import math
 from collections import Iterable, defaultdict
 import itertools
+import random
 from nltk.corpus import wordnet as wn
 from encoder import *
 from decoder import *
@@ -15,37 +16,18 @@ print(torch.cuda.device_count())
 
 class Model(nn.Module):
 
-	def __init__(self, 
-				optimizer_class = torch.optim.Adam,
-				optim_wt_decay = 0.,
-				epochs = 5,
+	def __init__(self,
+				encoder,
+				decoder,
+				dropout = 0, 
 				regularization = None,
 				all_senses = None,
-				all_supersenses = None, 
-				elmo_class = None, # for sense vector in the model
-				file_path = "",
-				device = device,
-				**kwargs):
+				device = device):
 		super(Model, self).__init__()
-
-		## Training parameters
-		self.epochs = epochs
-		self.elmo_class = elmo_class
-
-		## optimizer 
-		self.optimizer = optimizer_class
-		self.optim_wt_decay = optim_wt_decay
 		
 		# taget word index and senses list
 		self.all_senses = all_senses
-
-		self._init_kwargs = kwargs
 		self.device = device
-
-		# loss for the decoder
-		# ignore the padding
-		# TODO: add vocab
-		self.loss = nn.CrossEntropyLoss(ignore_index = PAD_IDX)
 		
 		'''
 		if regularization == "l1":
@@ -55,19 +37,72 @@ class Model(nn.Module):
 		else:
 			self.regularization = None
 		'''
-		self.best_model_file =  file_path + "word_sense_model_.pth"		
 		'''
 		if self.regularization:
 			self.regularization = self.regularization.to(self.device)
 		'''
 
-		self.encoder = Encoder(all_senses = self.all_senses, elmo_class = self.elmo_class, mlp_dropout = 0)
+		self.encoder = encoder
+		# TODO: vocab size
+		self.decoder = decoder
 
-		# TODO: vocab
-		self.decoder = Decoder(vocab_size = 0, max_seq_length = 15, teacher_forcing = 0.4)
 		self.encoder = self.encoder.to(self.device)
 		self.decoder = self.decoder.to(self.device)
 
-	def forward(self):
+		# word embedding for decoding sense
+		self.embed = nn.Embedding(self.decoder.vocab_size, self.decoder.embed_size)
+		self.dropout = nn.Dropout(dropout)
 
-	
+	def forward(self, sentence, word_idx, definition, teacher_forcing_ratio = 0.4):
+		
+		'''
+		teacher_forcing: the probability of using ground truth in decoding
+		definnition: [1, max_len], the indices of each word in the true definition
+		sentence: the given sentence in a list
+		word_idx: the target word index in the sentence
+		'''
+
+		# TODO: pre-process the definition
+
+		# max definition and vocab length
+		max_len = self.decoder.max_seq_length
+		vocab_size = self.decoder.vocab_size
+
+		# SGD
+		batch_size = 1
+		
+		# tensor to store decoder outputs
+		outputs = torch.zeros(max_len, batch_size, vocab_size).to(self.device)
+		
+		# sense embedding produced by the encoder as x0 for the decoder
+		# (1, 300)
+		sense_embedding = self.encoder(sentence, word_idx)
+		
+		# first input to the decoder is the <sos> tokens
+		word_index = definition[0]
+		
+		# initialize h_0 and c_0
+		hidden = torch.zeros(1, batch_size, self.decoder.hidden_size).to(self.device)
+		cell = torch.zeros(1, batch_size, self.decoder.hidden_size).to(self.device)
+
+		for t in range(1, max_len):
+			
+			# get embedding at each time step from the LSTM
+			# (batch, vocab_size)
+			output, hidden, cell = self.decoder(sense_embedding, hidden, cell)
+			outputs[t] = output
+
+			# get the max word from the vocabulary
+			generated_index = output.max(1)[1]
+
+			# may use the correct word from the definition
+			teacher_force = random.random() < teacher_forcing_ratio
+			if teacher_force and len(definition) > t:
+				word_index = definition[t]
+			else:
+				word_index = generated_index
+
+			# get the new embedding as the input of the next time step
+			sense_embedding = self.dropout(self.embedding(word_index))
+		
+		return outputs

@@ -1,4 +1,3 @@
-import sys
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -9,6 +8,8 @@ from nltk.corpus import wordnet as wn
 
 '''
 the encoder to encode the target word sense in the given context
+given a sequence (sentence)
+generate the sense embedding of the word
 '''
 class Encoder(nn.Module):
 	def __init__(self, 

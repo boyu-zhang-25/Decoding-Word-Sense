@@ -1,4 +1,3 @@
-import sys
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -20,6 +19,10 @@ Which returns 'noun.time'.
 And wn.synset('spring.n.02').lexname() returns 'noun.artifact'
 '''
 
+''' 
+build the vocab for the decoder
+iterate and tokenize all definitions in the WN for all synsets
+'''
 class Vocabulary(object):
 
 	"""Simple vocabulary wrapper."""
@@ -41,7 +44,6 @@ class Vocabulary(object):
 
 	def __len__(self):
 		return len(self.word2idx)
-
 
 def build_vocab(threshold):
 
@@ -102,4 +104,5 @@ if __name__ == '__main__':
 	parser.add_argument('--threshold', type = int, default = 0, 
 						help = 'minimum word count threshold')
 	args = parser.parse_args()
+	from build_vocab import Vocabulary
 	main(args)

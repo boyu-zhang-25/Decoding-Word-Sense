@@ -9,16 +9,14 @@ a LSTM-based sequence decoder to decode the word sense in the given context
 class Decoder(nn.Module):
 
 	def __init__(self,
-				vocab_size, # TODO: vocab 
+				vocab_size,
 				embed_size = 300, # the same as the output_size of the encoder
 				hidden_size = 300, 
 				num_layers = 1, # 1 layer LSTM for decoder
-				max_seq_length = 15, # max length of definition generated is 15
+				max_seq_length = 17, # max length of definition generated is 15
 				device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
 
 		"""Build the layers in the decoder."""
-		# TODO: add vocab
-
 		super(Decoder, self).__init__()
 
 		self.hidden_size = hidden_size
@@ -33,7 +31,7 @@ class Decoder(nn.Module):
 		self.linear = nn.Linear(hidden_size, vocab_size)
 
 		# max length of sense used during decoding
-		self.max_seg_length = max_seq_length 
+		self.max_seq_length = max_seq_length 
 		
 	# this forward method only takes 1 time step
 	# explicitly iterate through the max_length to decode

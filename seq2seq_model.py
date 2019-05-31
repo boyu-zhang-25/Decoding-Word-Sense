@@ -45,50 +45,42 @@ class Seq2Seq_Model(nn.Module):
 		'''
 
 		self.encoder = encoder
-		# TODO: vocab size
 		self.decoder = decoder
+		self.max_length = decoder.max_seq_length
+		self.vocab_size = decoder.vocab_size
 
 		self.encoder = self.encoder.to(self.device)
 		self.decoder = self.decoder.to(self.device)
 
 		# word embedding for decoding sense
-		self.embed = nn.Embedding(self.decoder.vocab_size, self.decoder.embed_size)
+		self.embed = nn.Embedding(decoder.vocab_size, decoder.embed_size)
 		self.dropout = nn.Dropout(dropout)
 
 	def forward(self, sentence, word_idx, definition, teacher_forcing_ratio = 0.4):
 		
 		'''
 		teacher_forcing: the probability of using ground truth in decoding
-		definnition: [1, max_len], the indices of each word in the true definition
+		definnition: [1, self.max_length], the indices of each word in the true definition
 		sentence: the given sentence in a list
 		word_idx: the target word index in the sentence
 		'''
-
-		# TODO: pre-process the definition
-
-		# max definition and vocab length
-		max_len = self.decoder.max_seq_length
-		vocab_size = self.decoder.vocab_size
 
 		# SGD
 		batch_size = 1
 		
 		# tensor to store decoder outputs
-		outputs = torch.zeros(max_len, batch_size, vocab_size).to(self.device)
+		outputs = torch.zeros(self.max_length, batch_size, self.vocab_size).to(self.device)
 		
 		# sense embedding produced by the encoder as x0 for the decoder
-		# (1, 300)
+		# the x_0 in the decoder LSTM; size: (1, 300)
 		sense_embedding = self.encoder(sentence, word_idx)
-		
-		# first input to the decoder is the <sos> tokens
-		word_index = definition[0]
 		
 		# initialize h_0 and c_0
 		hidden = torch.zeros(1, batch_size, self.decoder.hidden_size).to(self.device)
 		cell = torch.zeros(1, batch_size, self.decoder.hidden_size).to(self.device)
 
 		# explicitly iterate through the max_length to decode
-		for t in range(1, max_len):
+		for t in range(0, self.max_length):
 			
 			# get embedding at each time step from the LSTM
 			# (batch, vocab_size)
@@ -100,12 +92,13 @@ class Seq2Seq_Model(nn.Module):
 
 			# may use the correct word from the definition
 			teacher_force = random.random() < teacher_forcing_ratio
-			if teacher_force and len(definition) > t:
+			if teacher_force:
 				word_index = definition[t]
 			else:
 				word_index = generated_index
 
 			# get the new embedding as the input of the next time step
-			sense_embedding = self.dropout(self.embedding(word_index))
+			lookup_tensor = torch.tensor([word_index], dtype = torch.long)
+			sense_embedding = self.dropout(self.embed(lookup_tensor))
 		
 		return outputs

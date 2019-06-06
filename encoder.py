@@ -14,13 +14,13 @@ generate the sense embedding of the word
 class Encoder(nn.Module):
 	def __init__(self, 
 				all_senses = None,
-				output_size = 300, # output size of each sense vector [300, 1]
+				output_size = 256, # output size of each sense embedding [256, 1]
 				embedding_size = 1024, # ELMo embedding size
 				elmo_class = None,
-				tuned_embed_size = 256,
+				tuned_embed_size = 512,
 				mlp_dropout = 0,
-				lstm_hidden_size = 256,
-				MLP_sizes = [512], # 1 hidden layer for fine-tuning sense vector
+				lstm_hidden_size = 256, # bi-directional, so final size is 512
+				MLP_sizes = [300], # 1 hidden layer for fine-tuning sense vector
 				device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
 		super(Encoder, self).__init__()
 		
@@ -44,14 +44,14 @@ class Encoder(nn.Module):
 		self.mlp_dropout = nn.Dropout(mlp_dropout) 
 
 		# dimension reduction for elmo
-		# 3 * 1024 ELMo -> 1 * 256 
+		# 3 * 1024 ELMo -> 512
 		self.dimension_reduction_MLP = nn.Linear(self.embedding_size * 3, self.tuned_embed_size).to(self.device)
 
 		# construct a LSTM on top of ELMo
 		self.lstm = nn.LSTM(self.tuned_embed_size, self.lstm_hidden_size, num_layers = 2, bidirectional = True).to(self.device)
 
 		# build a 2-layer MLP on top of LSTM for fine-tuning
-		self._init_MLP(self.tuned_embed_size * 2, self.MLP_sizes, self.output_size, param = "word_sense")
+		self._init_MLP(self.lstm_hidden_size * 2, self.MLP_sizes, self.output_size, param = "word_sense")
 
 
 	def _init_MLP(self, input_size, hidden_sizes, output_size, param = None):
@@ -72,6 +72,7 @@ class Encoder(nn.Module):
 
 			# append to the fine-tuning MLP
 			self.layers[param].append(layer)
+
 			# update dimension
 			input_size = h
 
@@ -80,6 +81,7 @@ class Encoder(nn.Module):
 			layer = layer.to(self.device)
 			self.layers[param].append(layer)            
 
+		# (300, 256)
 		output_layer = torch.nn.Linear(input_size, output_size)
 		output_layer = output_layer.to(self.device)
 		self.layers[param].append(output_layer)
@@ -97,27 +99,20 @@ class Encoder(nn.Module):
 		# get ELMo embedding of the sentence
 		# torch.Size([3 (layers), sentence length, 1024 (word vector length)])
 		embedding = torch.from_numpy(self.elmo_class.embed_sentence(sentence))
-		# print('119: {}'.format(embedding.requires_grad))
-
-		# pass to CUDA
 		embedding = embedding.to(self.device)
 
 		# old: [3 (layers), sentence_length, 1024 (word vector length)]
 		# new: [sentence_length, 3 (layers), word_embedding_size]
 		embedding = embedding.permute(1, 0, 2)
-		# print('126: {}'.format(embedding.requires_grad))
 
 		# concatenate 3 layers and reshape
 		# [sentence_length, batch_size, 3 * 1024]
 		batch_size = 1
 		sentence_length = embedding.size()[0]
 		embedding = embedding.contiguous().view(sentence_length, batch_size, -1)
-		# print('132: {}'.format(embedding.requires_grad))
 		
-		# [sentence_length, batch_size, 256]
+		# [sentence_length, batch_size, 512]
 		embedding = self._tune_embeddings(embedding)
-		# print('139: {}'.format(embedding.requires_grad))
-		# print('em require: {}'.format(embedding.requires_grad))
 
 		return embedding
 
@@ -129,27 +124,23 @@ class Encoder(nn.Module):
 		word_lemma = '____' + sentence[word_idx]
 
 		# get the dimension-reduced ELMo embedding
+		# [sentence_length, batch_size, 512]
 		embedding = self._get_embedding(sentence)
-		# print('em2 require: {}'.format(embedding.requires_grad))
-		# print(embedding)
 
 		# Run a Bi-LSTM and get the sense embedding
 		# (seq_len, batch, num_directions * hidden_size)
 		self.lstm.flatten_parameters()
 		embedding_new, (hn, cn) = self.lstm(embedding)
-		# print('213: {}'.format(embedding_new.requires_grad))
 
 		# Extract the new word embedding by index
+		# (1, batch, num_directions * hidden_size)
 		word_embedding = embedding_new[word_idx, :, :]
-		# print('217: {}'.format(word_embedding.requires_grad))
-		# print(word_embedding)
 
 		# Run fine-tuning MLP on new word embedding and get sense embedding
+		# (1, 256), batch is always 1 for SGD
 		sense_embedding = self._run_fine_tune_MLP(word_embedding, word_lemma, param = "word_sense")
 		sense_embedding = sense_embedding.view(1, -1)
 
-		# print('223: {}'.format(sense_embedding.requires_grad))
-		# print(sense_embedding)
 		return sense_embedding
 
 
@@ -166,5 +157,4 @@ class Encoder(nn.Module):
 			word_embedding = layer(word_embedding)
 			word_embedding = self.mlp_dropout(word_embedding)
 
-		# print('\nWord lemma: {}\nWord sense embedding size: {}\nAll its senses: {}'.format(word_lemma, word_embedding.size(), self.all_senses[word_lemma]))
 		return word_embedding

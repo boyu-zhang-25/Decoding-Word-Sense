@@ -21,6 +21,8 @@ class Seq2Seq_Model(nn.Module):
 	def __init__(self,
 				encoder,
 				decoder,
+				vocab,
+				word_embed_size = 256,
 				dropout = 0, 
 				regularization = None,
 				all_senses = None,
@@ -30,7 +32,11 @@ class Seq2Seq_Model(nn.Module):
 		# taget word index and senses list
 		self.all_senses = all_senses
 		self.device = device
-		
+
+		# the word embedding size for the nn.Embedding
+		# NOTICE: 1/2 of the decoder.embed_size because we will concat later
+		self.word_embed_size = word_embed_size
+
 		'''
 		if regularization == "l1":
 			self.regularization = L1Loss()
@@ -53,7 +59,10 @@ class Seq2Seq_Model(nn.Module):
 		self.decoder = self.decoder.to(self.device)
 
 		# word embedding for decoding sense
-		self.embed = nn.Embedding(decoder.vocab_size, decoder.embed_size)
+		self.pad_idx = vocab('<pad>')
+		self.start_idx = vocab('<start>')
+		self.end_idx = vocab('<end>')
+		self.embed = nn.Embedding(decoder.vocab_size, self.word_embed_size, padding_idx = self.pad_idx)
 		self.dropout = nn.Dropout(dropout)
 
 	def forward(self, sentence, word_idx, definition, teacher_forcing_ratio = 0.4):
@@ -70,20 +79,29 @@ class Seq2Seq_Model(nn.Module):
 		
 		# tensor to store decoder outputs
 		outputs = torch.zeros(self.max_length, batch_size, self.vocab_size).to(self.device)
+
+		# initialize the x_0 with <start>
+		# (1, word_embed_size)
+		lookup_tensor = torch.tensor([self.start_idx], dtype = torch.long)
+		generated_embedding = self.dropout(self.embed(lookup_tensor))
 		
-		# sense embedding produced by the encoder as x0 for the decoder
-		# the x_0 in the decoder LSTM; size: (1, 300)
-		sense_embedding = self.encoder(sentence, word_idx)
-		
-		# initialize h_0 and c_0
-		hidden = torch.zeros(1, batch_size, self.decoder.hidden_size).to(self.device)
-		cell = torch.zeros(1, batch_size, self.decoder.hidden_size).to(self.device)
+		# sense embedding of the encode
+		# (1, word_embed_size)
+		encoder_embedding = self.encoder(sentence, word_idx)
+
+		# concat of the encoder embedding and the generated word embedding
+		# (1, decoder.embed_size)
+		sense_embedding = torch.cat((encoder_embedding, generated_embedding), 1)
+
+		# initialize h_0 and c_0 for the decoder LSTM_Cell
+		hidden = torch.zeros(batch_size, self.decoder.hidden_size).to(self.device)
+		cell = torch.zeros(batch_size, self.decoder.hidden_size).to(self.device)
 
 		# explicitly iterate through the max_length to decode
 		for t in range(0, self.max_length):
 			
 			# get embedding at each time step from the LSTM
-			# (batch, vocab_size)
+			# (batch, vocab_size), (batch, decoder.hidden_size)
 			output, hidden, cell = self.decoder(sense_embedding, hidden, cell)
 			outputs[t] = output
 
@@ -97,8 +115,10 @@ class Seq2Seq_Model(nn.Module):
 			else:
 				word_index = generated_index
 
-			# get the new embedding as the input of the next time step
+			# get the new embedding
+			# concat the encoder embedding to the generated embedding at each time step
 			lookup_tensor = torch.tensor([word_index], dtype = torch.long)
-			sense_embedding = self.dropout(self.embed(lookup_tensor))
-		
+			generated_embedding = self.dropout(self.embed(lookup_tensor))
+			sense_embedding = torch.cat((encoder_embedding, generated_embedding), 1)
+
 		return outputs

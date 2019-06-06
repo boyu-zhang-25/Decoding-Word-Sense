@@ -10,10 +10,9 @@ class Decoder(nn.Module):
 
 	def __init__(self,
 				vocab_size,
-				embed_size = 300, # the same as the output_size of the encoder
-				hidden_size = 300, 
-				num_layers = 1, # 1 layer LSTM for decoder
-				max_seq_length = 17, # max length of definition generated is 15
+				embed_size = 512, # concat the sense embedding and the generated word embedding (2 * 256)
+				hidden_size = 256, # length of the generated word embedding 
+				max_seq_length = 17, # max length of definition generated is 15 with <start> and <end>
 				device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
 
 		"""Build the layers in the decoder."""
@@ -25,10 +24,10 @@ class Decoder(nn.Module):
 		self.embed_size = embed_size
 		
 		# the decoding LSTM
-		self.lstm = nn.LSTM(self.embed_size, hidden_size, num_layers)
+		self.lstm_cell = nn.LSTMCell(self.embed_size, self.hidden_size)
 		
 		# project the output from LSTM to vocabulary space
-		self.linear = nn.Linear(hidden_size, vocab_size)
+		self.linear = nn.Linear(self.hidden_size, self.vocab_size)
 
 		# max length of sense used during decoding
 		self.max_seq_length = max_seq_length 
@@ -39,24 +38,17 @@ class Decoder(nn.Module):
 	def forward(self, sense_embedding, hidden, cell):
 		'''
 		the predicted word in the embedding:
-		sense_embedding: (batch_size, embed_size)
-		
+		sense_embedding (batch_size, embed_size): concat of the encoder embedding and the generated word embedding
 		batch_size = 1 for SGD
-
-		used to specify the state of the LSTM:
-		hidden = [n layers * n directions, batch size, hid dim]
-		cell = [n layers * n directions, batch size, hid dim]
+		hidden, cell of shape (batch, hidden_size)
 		'''
 
-		self.lstm.flatten_parameters()
-
-		# (1, batch_size, embed_size)
-		sense_embedding = sense_embedding.unsqueeze(0)
-
 		# LSTM for 1 time step: generating the next embedding
-		sense_embedding, (hidden, cell) = self.lstm(sense_embedding, (hidden, cell))
+		# (batch, hidden_size)
+		(hidden, cell) = self.lstm_cell(sense_embedding, (hidden, cell))
 		
-		# output: (batch_size, vocab_size)
-		output = self.linear(sense_embedding.squeeze(0))
+		# project to the vocab
+		# (batch_size, vocab_size)
+		output = self.linear(hidden)
 
 		return output, hidden, cell

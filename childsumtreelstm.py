@@ -3,7 +3,6 @@ import torch
 import torch.nn.functional as F
 import pdb
 from abc import ABCMeta, abstractmethod
-from factslab.datastructures import ConstituencyTree
 from torch.nn.modules.dropout import Dropout
 from torch.nn.modules.rnn import RNNBase
 
@@ -12,6 +11,7 @@ if sys.version_info.major == 3:
 else:
 	from functools32 import lru_cache
 
+from nltk.corpus import wordnet as wn
 
 class ChildSumTreeLSTM(RNNBase):
 	"""A bidirectional extension of child-sum tree LSTMs
@@ -36,7 +36,17 @@ class ChildSumTreeLSTM(RNNBase):
 	def nonlinearity(x):
 		return F.tanh(x)
 
-	def forward(self, inputs, tree):
+	# keeping record of all the synsets that 
+	# is connected and updated
+	# during this turn of forward method
+	self.all_synsets = []
+
+	'''
+	given a synset (in '_')
+	use all its hypers and hypons to generate the new node embedding
+	recursive over the whole WN
+	'''
+	def forward(self, inputs, synset):
 		"""
 		Parameters
 		----------
@@ -52,6 +62,11 @@ class ChildSumTreeLSTM(RNNBase):
 			- parents_idx: indices of parents of a particular index
 			- is_terminal_idx: whether the node is terminal
 
+		synset: class 'nltk.corpus.reader.wordnet.Synset'
+		the current synset (node)
+		must be coverted to string by wn.synset().name()
+		and convert '.' to '_' due to hashing
+
 		Returns
 		-------
 		hidden_all : torch.Tensor
@@ -62,41 +77,51 @@ class ChildSumTreeLSTM(RNNBase):
 		"""
 
 		self._validate_inputs(inputs)
+		self.all_synsets.append(synset)
+		# ridx = tree.root_idx()
 
-		ridx = tree.root_idx()
-
+		# used to store all updated embeddings
+		# of all the synsets that is connected and updated in this trun
+		# {layers: {'up': {synset: [embedding tensor]}, 'down': {synset: [embedding tensor]}}}
 		self.hidden_state = {}
 		self.cell_state = {}
 
 		for layer in range(self.num_layers):
+
+			# hyper == 'up'
+			# hypon == 'down'
 			self.hidden_state[layer] = {'up': {}, 'down': {}}
 			self.cell_state[layer] = {'up': {}, 'down': {}}
 
-			for i in ridx:
-				self._upward_downward(layer, 'up', inputs, tree, i)
+			# get the new node embedding by all its hypers and hypons
+			# start with hyper
+			self._upward_downward(layer, 'up', inputs, synset)
 
 		# sort the indices; only really matters for constituency trees,
 		# since dependency trees can be linearized in the same order
 		# as the original inputs, while constituency trees will have
 		# more hidden states than there are inputs
-		indices = tree.positions
 
+		# indices = tree.positions
+
+		# the hidden states of all connected hyper and hypons in this turn
+		# the final hidden state and cell state of the current synset
 		hidden_up = self.hidden_state[self.num_layers - 1]['up']
-
 		if self.bidirectional:
 			hidden_down = self.hidden_state[self.num_layers - 1]['down']
-			hidden_all = [torch.cat([hidden_up[i], hidden_down[i]])
-						  for i in indices]
+			hidden_all = [torch.cat([hidden_up[key], hidden_down[key]])
+						  for key in self.hidden_state[self.num_layers - 1]['up'].keys()]
+
+			hidden_final = torch.cat([hidden_up[synset], hidden_down[synset]])
+			cell_final = torch.cat(self.cell_state[self.num_layers - 1]['up'][synset], self.cell_state[self.num_layers - 1]['down'][synset])
+
 		else:
-			hidden_all = [hidden_up[i] for i in indices]
+			hidden_all = [hidden_up[key] for key in self.hidden_state[self.num_layers - 1]['up'].keys()]
+			hidden_final = hidden_up[synset]
+			cell_final = self.cell_state[self.num_layers - 1]['up'][synset]
 
-		hidden_final = [hidden_all[k]
-						for k, i in enumerate(indices)
-						if i in ridx]
-
-		hidden_all = torch.stack(hidden_all)
-		hidden_final = torch.mean(torch.stack(hidden_final), 0, keepdim=False)
-
+		''''
+		support mini-batch? maybe later
 		if self._has_batch_dimension:
 			if self.batch_first:
 				return hidden_all[None, :, :], hidden_final[None, :]
@@ -104,32 +129,43 @@ class ChildSumTreeLSTM(RNNBase):
 				return hidden_all[:, None, :], hidden_final[None, :]
 		else:
 			return hidden_all, hidden_final
+		'''
 
-	def _upward_downward(self, layer, direction, inputs, tree, idx):
+		# (the standard output size of LSTM you get it...)
+		return hidden_all, (hidden_final, cell_final)
+
+	'''
+	given the current node (synset, in '_')
+	find all its hyper/hypon embeddings recursively (in _construct_previous)
+	calculate the new embedding by the LSTM gates
+	'''
+	def _upward_downward(self, layer, direction, inputs, synset):
+
+		# convert '_' to '.' due to hashing
+		synset = synset.replace('.', '_')
+
 		# check to see whether this node has been computed on this
 		# layer in this direction, if so short circuit the rest of
 		# this function and return that result
-		if idx in self.hidden_state[layer][direction]:
-			h_t = self.hidden_state[layer][direction][idx]
-			c_t = self.cell_state[layer][direction][idx]
+		if synset in self.hidden_state[layer][direction]:
+			h_t = self.hidden_state[layer][direction][synset]
+			c_t = self.cell_state[layer][direction][synset]
 
 			return h_t, c_t
 
-		x_t = self._construct_x_t(layer, inputs, idx, tree)
+		# get the current node x_t from the embedding
+		x_t = self._construct_x_t(layer, inputs, synset)
 
+		# construct the hyper and hypon embedding recursively
+		# h_prev, c_prev: (hidden_size, num_hyper/num_hypon)
+		# convert '_' to '.' due to hashing
+		synset = synset.replace('_', '.')
 		oidx, (h_prev, c_prev) = self._construct_previous(layer, direction,
-														  inputs, tree, idx)
+														  inputs, synset)
 
+		# broadcasting to get all the LSTM gates
 		if self.bias:
 			Wih, Whh, bih, bhh = self._get_parameters(layer, direction)
-
-			# print(Wih.size())
-			# print(Whh.size())
-			# print(bih.size())
-			# print(bhh.size())
-
-			# print(x_t.size())
-			# print(h_prev.size())
 
 			fcio_t_raw = torch.matmul(Whh, h_prev) +\
 				torch.matmul(Wih, x_t[:, None]) +\
@@ -141,18 +177,20 @@ class ChildSumTreeLSTM(RNNBase):
 			fcio_t_raw = torch.matmul(Whh, h_prev) +\
 				torch.matmul(Wih, x_t[:, None])
 
+		# split for each LSTM gate
 		f_t_raw, c_hat_t_raw, i_t_raw, o_t_raw = torch.split(fcio_t_raw,
 															 self.hidden_size,
-															 dim=0)
-
+															 dim = 0)
+		# hidden and cell states calculation
+		# summing over the gated_children for new h and c
 		f_t = F.sigmoid(f_t_raw)
 
 		gated_children = torch.mul(f_t, c_prev)
-		gated_children = torch.sum(gated_children, 1, keepdim=False)
+		gated_children = torch.sum(gated_children, 1, keepdim = False)
 
-		c_hat_t_raw = torch.sum(c_hat_t_raw, 1, keepdim=False)
-		i_t_raw = torch.sum(i_t_raw, 1, keepdim=False)
-		o_t_raw = torch.sum(o_t_raw, 1, keepdim=False)
+		c_hat_t_raw = torch.sum(c_hat_t_raw, 1, keepdim = False)
+		i_t_raw = torch.sum(i_t_raw, 1, keepdim = False)
+		o_t_raw = torch.sum(o_t_raw, 1, keepdim = False)
 
 		c_hat_t = self.__class__.nonlinearity(c_hat_t_raw)
 		i_t = F.sigmoid(i_t_raw)
@@ -161,19 +199,28 @@ class ChildSumTreeLSTM(RNNBase):
 		c_t = gated_children + torch.mul(i_t, c_hat_t)
 		h_t = torch.mul(o_t, self.__class__.nonlinearity(c_t))
 
+		# may add dropout
 		if self.dropout:
-			dropout = Dropout(p=self.dropout)
+			dropout = Dropout(p = self.dropout)
 			h_t = dropout(h_t)
 			c_t = dropout(c_t)
 
-		self.hidden_state[layer][direction][idx] = h_t
-		self.cell_state[layer][direction][idx] = c_t
+		# store h and c for the new synset embeddings
+		# improve efficiency when short-circuit
+		# convert '.' back to '_' due to hashing
+		synset = synset.replace('.', '_')
+		self.hidden_state[layer][direction][synset] = h_t
+		self.cell_state[layer][direction][synset] = c_t
 
+		# get the hypon
 		if direction == 'up' and self.bidirectional:
-			self._upward_downward(layer, 'down', inputs, tree, idx)
+			self._upward_downward(layer, 'down', inputs, synset)
 
+		# (hidden_size)
 		return h_t, c_t
 
+	# validate the input shape
+	# only support SGD with batch size of 1
 	def _validate_inputs(self, inputs):
 		if len(inputs.size()) == 3:
 			self._has_batch_dimension = True
@@ -212,38 +259,50 @@ class ChildSumTreeLSTM(RNNBase):
 			return Wih, Whh
 
 	@abstractmethod
-	def _construct_x_t(self, layer, inputs, idx):
+	def _construct_x_t(self, layer, inputs, synset):
 		raise NotImplementedError
 
-	def _construct_previous(self, layer, direction, inputs, tree, idx):
-		if direction == 'up':
-			oidx = tree.children_idx(idx)
-		else:
-			oidx = tree.parents_idx(idx)
+	'''
+	given the current synset (node, in '.') and the direction
+	recursively find all its hyper or hypon embeddings
+	'''
+	def _construct_previous(self, layer, direction, inputs, synset):
 
+		# find the all hyper/hypon synsets of the current nodes by the WN
+		if direction == 'up':
+			oidx = [hyper.name() for hyper in wn.synset(synset).hypernyms()]
+		else:
+			oidx = [hypon.name() for hypon in wn.synset(synset).hyponyms()]
+
+		# keep record of all updated hyper/hypon
+		# convert '.' to '_' due to hashing
+		self.all_synsets += [name.replace('.', '_') for name in oidx]
+
+		# recursively construct all embedding for the hypers/hypons
 		if oidx:
 			h_prev, c_prev = [], []
 
 			for i in oidx:
-				h_prev_i, c_prev_i = self._upward_downward(layer,
-														   direction,
-														   inputs,
-														   tree, i)
 
+				# get the h and c for each hyper/hypon
+				# (hidden_size)
+				h_prev_i, c_prev_i = self._upward_downward(layer, direction, inputs, i)
 				h_prev.append(h_prev_i)
 				c_prev.append(c_prev_i)
 
+			# stack to a new tensor: (hidden_size, num_hyper/num_hypon)
 			h_prev = torch.stack(h_prev, 1)
 			c_prev = torch.stack(c_prev, 1)
 
+		# if it is a left node (no hyper/hypon), return 0 tensor
 		elif inputs.is_cuda:
 			h_prev = torch.zeros(self.hidden_size, 1).cuda()
 			c_prev = torch.zeros(self.hidden_size, 1).cuda()
-
 		else:
 			h_prev = torch.zeros(self.hidden_size, 1)
 			c_prev = torch.zeros(self.hidden_size, 1)
 
+		# (hidden_size, num_hyper/num_hypon)
 		return oidx, (h_prev, c_prev)
 
 

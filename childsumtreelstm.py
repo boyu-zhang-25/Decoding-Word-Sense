@@ -1,6 +1,5 @@
 import sys
 import torch
-import torch.nn.functional as F
 import pdb
 from abc import ABCMeta, abstractmethod
 from torch.nn.modules.dropout import Dropout
@@ -33,10 +32,10 @@ class ChildSumTreeLSTM(RNNBase):
 
 	@staticmethod
 	def nonlinearity(x):
-		return F.tanh(x)
+		return torch.tanh(x)
 
 	'''
-	given a synset (in '_')
+	given a synset (in '__')
 	use all its hypers and hypons to generate the new node embedding
 	recursive over the whole WN
 	'''
@@ -59,7 +58,7 @@ class ChildSumTreeLSTM(RNNBase):
 		synset: class 'nltk.corpus.reader.wordnet.Synset'
 		the current synset (node)
 		must be coverted to string by wn.synset().name()
-		and convert '.' to '_' due to hashing
+		and convert '.' to '__' due to hashing
 
 		Returns
 		-------
@@ -70,7 +69,7 @@ class ChildSumTreeLSTM(RNNBase):
 			returned
 		"""
 
-		self._validate_inputs(inputs)
+		# self._validate_inputs(inputs)
 		# ridx = tree.root_idx()
 
 		# used to store all updated embeddings
@@ -96,6 +95,8 @@ class ChildSumTreeLSTM(RNNBase):
 		# more hidden states than there are inputs
 
 		# indices = tree.positions
+		# convert '__' to '.' due to hashing
+		synset = synset.replace('.', '__')
 
 		# the hidden states of all connected hyper and hypons in this turn
 		# the final hidden state and cell state of the current synset
@@ -128,14 +129,14 @@ class ChildSumTreeLSTM(RNNBase):
 		return hidden_all, (hidden_final, cell_final)
 
 	'''
-	given the current node (synset, in '_')
+	given the current node (synset, in '__')
 	find all its hyper/hypon embeddings recursively (in _construct_previous)
 	calculate the new embedding by the LSTM gates
 	'''
 	def _upward_downward(self, layer, direction, inputs, synset):
 
-		# convert '_' to '.' due to hashing
-		synset = synset.replace('.', '_')
+		# convert '__' to '.' due to hashing
+		synset = synset.replace('.', '__')
 
 		# check to see whether this node has been computed on this
 		# layer in this direction, if so short circuit the rest of
@@ -151,8 +152,8 @@ class ChildSumTreeLSTM(RNNBase):
 
 		# construct the hyper and hypon embedding recursively
 		# h_prev, c_prev: (hidden_size, num_hyper/num_hypon)
-		# convert '_' to '.' due to hashing
-		synset = synset.replace('_', '.')
+		# convert '__' to '.' due to hashing
+		synset = synset.replace('__', '.')
 		oidx, (h_prev, c_prev) = self._construct_previous(layer, direction,
 														  inputs, synset)
 
@@ -177,7 +178,7 @@ class ChildSumTreeLSTM(RNNBase):
 															 dim = 0)
 		# hidden and cell states calculation
 		# summing over the gated_children for new h and c
-		f_t = F.sigmoid(f_t_raw)
+		f_t = torch.sigmoid(f_t_raw)
 
 		gated_children = torch.mul(f_t, c_prev)
 		gated_children = torch.sum(gated_children, 1, keepdim = False)
@@ -187,8 +188,8 @@ class ChildSumTreeLSTM(RNNBase):
 		o_t_raw = torch.sum(o_t_raw, 1, keepdim = False)
 
 		c_hat_t = self.__class__.nonlinearity(c_hat_t_raw)
-		i_t = F.sigmoid(i_t_raw)
-		o_t = F.sigmoid(o_t_raw)
+		i_t = torch.sigmoid(i_t_raw)
+		o_t = torch.sigmoid(o_t_raw)
 
 		c_t = gated_children + torch.mul(i_t, c_hat_t)
 		h_t = torch.mul(o_t, self.__class__.nonlinearity(c_t))
@@ -201,8 +202,8 @@ class ChildSumTreeLSTM(RNNBase):
 
 		# store h and c for the new synset embeddings
 		# improve efficiency when short-circuit
-		# convert '.' back to '_' due to hashing
-		synset = synset.replace('.', '_')
+		# convert '.' back to '__' due to hashing
+		synset = synset.replace('.', '__')
 		self.hidden_state[layer][direction][synset] = h_t
 		self.cell_state[layer][direction][synset] = c_t
 
@@ -271,7 +272,8 @@ class ChildSumTreeLSTM(RNNBase):
 			oidx = [hypon.name() for hypon in wn.synset(synset).hyponyms()]
 
 		# recursively construct all embedding for the hypers/hypons
-		if oidx:
+		print(oidx)
+		if len(oidx) > 0:
 			h_prev, c_prev = [], []
 
 			for i in oidx:
@@ -285,14 +287,19 @@ class ChildSumTreeLSTM(RNNBase):
 			# stack to a new tensor: (hidden_size, num_hyper/num_hypon)
 			h_prev = torch.stack(h_prev, 1)
 			c_prev = torch.stack(c_prev, 1)
+		else:
+			h_prev = torch.zeros(self.hidden_size, 1)
+			c_prev = torch.zeros(self.hidden_size, 1)
 
 		# if it is a left node (no hyper/hypon), return 0 tensor
+		'''
 		elif inputs.is_cuda:
 			h_prev = torch.zeros(self.hidden_size, 1).cuda()
 			c_prev = torch.zeros(self.hidden_size, 1).cuda()
 		else:
 			h_prev = torch.zeros(self.hidden_size, 1)
 			c_prev = torch.zeros(self.hidden_size, 1)
+		'''
 
 		# (hidden_size, num_hyper/num_hypon)
 		return oidx, (h_prev, c_prev)
@@ -307,13 +314,13 @@ class ChildSumGraphLSTM(ChildSumTreeLSTM):
 
 		# if the synset does not exit
 		# random initialization
-		if synset in self.hidden_state[layer - 1]['up']:
+		if synset in self.hidden_state[layer]['up']:
 
 			# check direction
 			if self.bidirectional:
-				x_t = torch.cat([self.hidden_state[layer - 1]['up'][synset], self.hidden_state[layer - 1]['down'][synset]])
+				x_t = torch.cat([self.hidden_state[layer]['up'][synset], self.hidden_state[layer]['down'][synset]])
 			else:
-				x_t = self.hidden_state[layer - 1]['up'][synset]
+				x_t = self.hidden_state[layer]['up'][synset]
 		else:
 			x_t = torch.randn(self.input_size)
 
@@ -322,6 +329,8 @@ class ChildSumGraphLSTM(ChildSumTreeLSTM):
 def main():
 
 	test_graph = ChildSumGraphLSTM(input_size = 3, hidden_size = 5, num_layers = 1, bias = False)
+	synset = wn.synset('dog.n.01').name()
+	output = test_graph('input', synset)
 
 if __name__ == '__main__':
 	main()

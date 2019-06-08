@@ -354,18 +354,20 @@ def main():
 		synset_vocab = pickle.load(f)
 	print("Size of synset vocab: {}".format(synset_vocab.idx))
 
-	graph = ChildSumGraphLSTM_WordNet(synset_vocab = synset_vocab, input_size = 3, hidden_size = 1, num_layers = 2, bidirectional = True, bias = True)
+	graph = ChildSumGraphLSTM_WordNet(synset_vocab = synset_vocab, input_size = 256, hidden_size = 512, num_layers = 1, bidirectional = True, bias = True)
 	# graph.apply(init_weights)
-	# synset = wn.synset('dog.n.01').name()
+	synset = wn.synset('dog.n.01').name()
 
 	start_time = time.time()
 
 	# iterate through all synsets in the WN
+	graph('input', synset)
+	'''
 	for synset in wn.all_synsets():
 		print(synset)
 		graph('input', synset)
 		print('\n')
-
+	'''
 	end_time = time.time()
 	print('time: {}'.format((end_time - start_time)))
 

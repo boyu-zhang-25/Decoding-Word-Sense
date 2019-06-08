@@ -16,10 +16,9 @@ from nltk.corpus import wordnet as wn
 class ChildSumTreeLSTM(RNNBase):
 	"""A bidirectional extension of child-sum tree LSTMs
 
-	This class cannot be instantiated directly. Instead, use one of
-	its subclasses:
-	  - ChildSumDependencyTreeLSTM
-	  - ChildSumConstituencyTreeLSTM
+	This class cannot be instantiated directly. Instead, use its subclasses:
+	  - ChildSumGraphTreeLSTM
+	  the naming is bad ik.....
 	"""
 
 	__metaclass__ = ABCMeta
@@ -35,11 +34,6 @@ class ChildSumTreeLSTM(RNNBase):
 	@staticmethod
 	def nonlinearity(x):
 		return F.tanh(x)
-
-	# keeping record of all the synsets that 
-	# is connected and updated
-	# during this turn of forward method
-	self.all_synsets = []
 
 	'''
 	given a synset (in '_')
@@ -77,7 +71,6 @@ class ChildSumTreeLSTM(RNNBase):
 		"""
 
 		self._validate_inputs(inputs)
-		self.all_synsets.append(synset)
 		# ridx = tree.root_idx()
 
 		# used to store all updated embeddings
@@ -163,7 +156,8 @@ class ChildSumTreeLSTM(RNNBase):
 		oidx, (h_prev, c_prev) = self._construct_previous(layer, direction,
 														  inputs, synset)
 
-		# broadcasting to get all the LSTM gates
+		# broadcasting and cast size 
+		# to calculate all the LSTM gates
 		if self.bias:
 			Wih, Whh, bih, bhh = self._get_parameters(layer, direction)
 
@@ -239,6 +233,8 @@ class ChildSumTreeLSTM(RNNBase):
 			msg += 'a batch dimension)'
 			raise ValueError(msg)
 
+	# get the params of the LSTM
+	# default params by the Pytorch source code of the RNNBase
 	def _get_parameters(self, layer, direction):
 		dirtag = '' if direction == 'up' else '_reverse'
 
@@ -274,10 +270,6 @@ class ChildSumTreeLSTM(RNNBase):
 		else:
 			oidx = [hypon.name() for hypon in wn.synset(synset).hyponyms()]
 
-		# keep record of all updated hyper/hypon
-		# convert '.' to '_' due to hashing
-		self.all_synsets += [name.replace('.', '_') for name in oidx]
-
 		# recursively construct all embedding for the hypers/hypons
 		if oidx:
 			h_prev, c_prev = [], []
@@ -306,78 +298,30 @@ class ChildSumTreeLSTM(RNNBase):
 		return oidx, (h_prev, c_prev)
 
 
-class ChildSumDependencyTreeLSTM(ChildSumTreeLSTM):
-	"""A bidirectional extension of child-sum dependency tree LSTMs
-
-	This module is constructed so as to be a drop-in replacement for
-	the stock LSTM implemented in pytorch.nn.modules.rnn. It
-	implements both bidirectional and unidirectional child-sum tree
-	LSTMs for dependency trees. As such, it aims to minimally change
-	that implementation's interface to allow for nontrivial tree
-	topologies, and it exposes the parameters of the LSTM in the same
-	way - i.e. the attribute names for the LSTM weights and biases are
-	exactly the same as for the linear chain LSTM. The main difference
-	between the linear chain version and this version is that
-	forward() requires an nltk dependency graph representing a
-	dependency tree for the input embeddings and does not require
-	initial values for the hidden and cell states.
+class ChildSumGraphLSTM(ChildSumTreeLSTM):
+	"""A bidirectional extension of child-sum tree LSTMs
 
 	"""
 
-	def _construct_x_t(self, layer, inputs, idx, tree):
-		if layer > 0 and self.bidirectional:
-			x_t = torch.cat([self.hidden_state[layer - 1]['up'][idx],
-							 self.hidden_state[layer - 1]['down'][idx]])
-		elif layer > 0:
-			x_t = self.hidden_state[layer - 1]['up'][idx]
-		elif self._has_batch_dimension:
-			word_idx = tree.word_index(idx)
-			x_t = inputs[word_idx, 0]
-		else:
-			word_idx = tree.word_index(idx)
-			x_t = inputs[word_idx]
+	def _construct_x_t(self, layer, inputs, synset):
 
-		return x_t
+		# if the synset does not exit
+		# random initialization
+		if synset in self.hidden_state[layer - 1]['up']:
 
-
-class ChildSumConstituencyTreeLSTM(ChildSumTreeLSTM):
-	"""A bidirectional extension of child-sum constituency tree LSTMs
-
-	The main difference between this subclass of ChildSumTreeLSTM and
-	the dependency tree subclass (ChildSumDependencyTreeLSTM) is that
-	we don't necessarily have a word embedding for each node, and so
-	we need to alter how we construct the inputs at a node to reflect
-	this.
-
-	Unlike ChildSumDependencyTreeLSTM, this subclass is harder to use
-	as a drop-in replace for LSTM or GRU because its output hidden
-	states will be larger than its inputs.
-	"""
-
-	def _construct_x_t(self, layer, inputs, idx, tree):
-		if layer > 0 and self.bidirectional:
-			x_t = torch.cat([self.hidden_state[layer - 1]['up'][idx],
-							 self.hidden_state[layer - 1]['down'][idx]])
-		elif layer > 0:
-			x_t = self.hidden_state[layer - 1]['up'][idx]
-		else:
-			if idx in tree.terminal_indices:
-				string_idx = tree.terminal_indices.index(idx)
-
-				if self._has_batch_dimension:
-					x_t = inputs[string_idx, 0]
-				else:
-					x_t = inputs[string_idx]
+			# check direction
+			if self.bidirectional:
+				x_t = torch.cat([self.hidden_state[layer - 1]['up'][synset], self.hidden_state[layer - 1]['down'][synset]])
 			else:
-				if self._has_batch_dimension:
-					x_t_raw = torch.zeros(self.input_size, 1)
-				else:
-					x_t_raw = torch.zeros(self.input_size)
-
-				if inputs.is_cuda:
-					x_t = x_t_raw.cuda()
-
-				else:
-					x_t = x_t_raw
+				x_t = self.hidden_state[layer - 1]['up'][synset]
+		else:
+			x_t = torch.randn(self.input_size)
 
 		return x_t
+
+def main():
+
+	test_graph = ChildSumGraphLSTM(input_size = 3, hidden_size = 5, num_layers = 1, bias = False)
+
+if __name__ == '__main__':
+	main()

@@ -88,6 +88,7 @@ class ChildSumTreeLSTM(RNNBase):
 			# get the new node embedding by all its hypers and hypons
 			# start with hyper
 			self._upward_downward(layer, 'up', inputs, synset)
+			# self._upward_downward(layer, 'down', inputs, synset)
 
 		# sort the indices; only really matters for constituency trees,
 		# since dependency trees can be linearized in the same order
@@ -109,7 +110,7 @@ class ChildSumTreeLSTM(RNNBase):
 			hidden_final = torch.cat([hidden_up[synset], hidden_down[synset]])
 			cell_final = torch.cat([self.cell_state[self.num_layers - 1]['up'][synset], self.cell_state[self.num_layers - 1]['down'][synset]])
 
-			print(hidden_down['abstraction__n__06'])
+			# print(hidden_down['abstraction__n__06'])
 		else:
 			hidden_all = [hidden_up[key] for key in self.hidden_state[self.num_layers - 1]['up'].keys()]
 			hidden_final = hidden_up[synset]
@@ -211,7 +212,7 @@ class ChildSumTreeLSTM(RNNBase):
 		self.cell_state[layer][direction][synset] = c_t
 
 		# get the hypon
-		if direction == 'up' and self.bidirectional:
+		if self.bidirectional and direction == 'up':
 			self._upward_downward(layer, 'down', inputs, synset)
 
 		# (hidden_size)
@@ -275,12 +276,6 @@ class ChildSumTreeLSTM(RNNBase):
 			oidx = [hypon.name() for hypon in wn.synset(synset).hyponyms()]
 
 		# recursively construct all embedding for the hypers/hypons
-		if 'abstraction.n.06' in oidx:
-			print(layer)
-			print(oidx)
-			print(direction)
-			print(synset)
-
 		if len(oidx) > 0:
 			h_prev, c_prev = [], []
 
@@ -325,8 +320,13 @@ class ChildSumGraphLSTM(ChildSumTreeLSTM):
 		# when at stacked layer, the input is the previous hidden state
 		# otherwise, x_t comes from the sense embedding
 		if layer > 0 and self.bidirectional:
-			x_t = torch.cat([self.hidden_state[layer - 1]['up'][synset],
-							 self.hidden_state[layer - 1]['down'][synset]])
+
+			# if the previous step did not calculate the hyper
+			if synset not in self.hidden_state[layer - 1]['up']:
+				self.hidden_state[layer - 1]['up'][synset] = self._upward_downward((layer - 1), 'up', inputs, synset)[0]
+
+			x_t = torch.cat([self.hidden_state[layer - 1]['up'][synset], self.hidden_state[layer - 1]['down'][synset]])
+
 		elif layer > 0:
 			x_t = self.hidden_state[layer - 1]['up'][synset]
 		else:
@@ -338,9 +338,14 @@ class ChildSumGraphLSTM(ChildSumTreeLSTM):
 
 def main():
 
-	test_graph = ChildSumGraphLSTM(input_size = 1, hidden_size = 1, num_layers = 1, bidirectional = True, bias = True)
+	test_graph = ChildSumGraphLSTM(input_size = 1, hidden_size = 1, num_layers = 2, bidirectional = True, bias = True)
 	synset = wn.synset('dog.n.01').name()
+
+	import time
+	start_time = time.time()
 	output = test_graph('input', synset)
+	end_time = time.time()
+	print('time: {}'.format((end_time - start_time)))
 
 if __name__ == '__main__':
 	main()

@@ -107,8 +107,9 @@ class ChildSumTreeLSTM(RNNBase):
 						  for key in self.hidden_state[self.num_layers - 1]['up'].keys()]
 
 			hidden_final = torch.cat([hidden_up[synset], hidden_down[synset]])
-			cell_final = torch.cat(self.cell_state[self.num_layers - 1]['up'][synset], self.cell_state[self.num_layers - 1]['down'][synset])
+			cell_final = torch.cat([self.cell_state[self.num_layers - 1]['up'][synset], self.cell_state[self.num_layers - 1]['down'][synset]])
 
+			print(hidden_down['abstraction__n__06'])
 		else:
 			hidden_all = [hidden_up[key] for key in self.hidden_state[self.num_layers - 1]['up'].keys()]
 			hidden_final = hidden_up[synset]
@@ -135,6 +136,7 @@ class ChildSumTreeLSTM(RNNBase):
 	'''
 	def _upward_downward(self, layer, direction, inputs, synset):
 
+		# print(direction)
 		# convert '__' to '.' due to hashing
 		synset = synset.replace('.', '__')
 
@@ -142,6 +144,7 @@ class ChildSumTreeLSTM(RNNBase):
 		# layer in this direction, if so short circuit the rest of
 		# this function and return that result
 		if synset in self.hidden_state[layer][direction]:
+			# print('short-circuit\n')
 			h_t = self.hidden_state[layer][direction][synset]
 			c_t = self.cell_state[layer][direction][synset]
 
@@ -272,7 +275,12 @@ class ChildSumTreeLSTM(RNNBase):
 			oidx = [hypon.name() for hypon in wn.synset(synset).hyponyms()]
 
 		# recursively construct all embedding for the hypers/hypons
-		print(oidx)
+		if 'abstraction.n.06' in oidx:
+			print(layer)
+			print(oidx)
+			print(direction)
+			print(synset)
+
 		if len(oidx) > 0:
 			h_prev, c_prev = [], []
 
@@ -291,6 +299,7 @@ class ChildSumTreeLSTM(RNNBase):
 			h_prev = torch.zeros(self.hidden_size, 1)
 			c_prev = torch.zeros(self.hidden_size, 1)
 
+		# TODO: CUDA support
 		# if it is a left node (no hyper/hypon), return 0 tensor
 		'''
 		elif inputs.is_cuda:
@@ -312,23 +321,24 @@ class ChildSumGraphLSTM(ChildSumTreeLSTM):
 
 	def _construct_x_t(self, layer, inputs, synset):
 
-		# if the synset does not exit
-		# random initialization
-		if synset in self.hidden_state[layer]['up']:
-
-			# check direction
-			if self.bidirectional:
-				x_t = torch.cat([self.hidden_state[layer]['up'][synset], self.hidden_state[layer]['down'][synset]])
-			else:
-				x_t = self.hidden_state[layer]['up'][synset]
+		# find the x_t
+		# when at stacked layer, the input is the previous hidden state
+		# otherwise, x_t comes from the sense embedding
+		if layer > 0 and self.bidirectional:
+			x_t = torch.cat([self.hidden_state[layer - 1]['up'][synset],
+							 self.hidden_state[layer - 1]['down'][synset]])
+		elif layer > 0:
+			x_t = self.hidden_state[layer - 1]['up'][synset]
 		else:
+
+			# TODO: sense embeddings
 			x_t = torch.randn(self.input_size)
 
 		return x_t
 
 def main():
 
-	test_graph = ChildSumGraphLSTM(input_size = 3, hidden_size = 5, num_layers = 1, bias = False)
+	test_graph = ChildSumGraphLSTM(input_size = 1, hidden_size = 1, num_layers = 1, bidirectional = True, bias = True)
 	synset = wn.synset('dog.n.01').name()
 	output = test_graph('input', synset)
 

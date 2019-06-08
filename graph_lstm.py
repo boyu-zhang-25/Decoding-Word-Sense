@@ -17,8 +17,9 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class ChildSumGraphLSTM(RNNBase):
 	"""A bidirectional extension of child-sum tree LSTMs that work on graphs
-	For each node, the embedding is calculated recursively 
-	from all connected branches in the graph.
+	For each node, the embedding is calculated recursively by LSTM 
+	The recursion will go through all connected nodes in the graph.
+	Each node has its own embedding store in the synset embeddings
 	It supports bidirection and stacked layers.
 
 	This class cannot be instantiated directly. 
@@ -45,7 +46,7 @@ class ChildSumGraphLSTM(RNNBase):
 		return torch.tanh(x)
 
 	'''
-	given a synset (in '__' due to hashing)
+	given a synset
 	use all its hypers and hypons to generate the new node embedding
 	recursively over the whole graph
 	'''
@@ -333,27 +334,41 @@ class ChildSumGraphLSTM_WordNet(ChildSumGraphLSTM):
 			# may add dropout
 			if self.dropout:
 				dropout = Dropout(p = self.dropout)
-				x_t = dropout(self.embedding(lookup_tensor))
+				x_t = dropout(self.embedding(lookup_tensor).squeeze(0))
 			else:
-				x_t = self.embedding(lookup_tensor)
+				x_t = self.embedding(lookup_tensor).squeeze(0)
 
+		# print(x_t.shape)
 		return x_t
+
+# weights initialization
+def init_weights(m):
+	for name, param in m.named_parameters():
+		print(name, param.shape)
+		torch.nn.init.uniform_(param.data, -0.08, 0.08)
 
 # test run
 def main():
 
 	with open('./data/synset_vocab.pkl', 'rb') as f:
 		synset_vocab = pickle.load(f)
-    print("Size of synset vocab: {}".format(synset_vocab.idx))
+	print("Size of synset vocab: {}".format(synset_vocab.idx))
 
-    graph = ChildSumGraphLSTM_WordNet(synset_vocab = synset_vocab, input_size = 1, hidden_size = 1, num_layers = 2, bidirectional = True, bias = True)
-	synset = wn.synset('dog.n.01').name()
+	graph = ChildSumGraphLSTM_WordNet(synset_vocab = synset_vocab, input_size = 3, hidden_size = 1, num_layers = 2, bidirectional = True, bias = True)
+	# graph.apply(init_weights)
+	# synset = wn.synset('dog.n.01').name()
 
-	import time
 	start_time = time.time()
-	output = graph('input', synset)
+
+	# iterate through all synsets in the WN
+	for synset in wn.all_synsets():
+		print(synset)
+		graph('input', synset)
+		print('\n')
+
 	end_time = time.time()
 	print('time: {}'.format((end_time - start_time)))
+
 
 if __name__ == '__main__':
 	main()

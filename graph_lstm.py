@@ -11,19 +11,23 @@ else:
 	from functools32 import lru_cache
 
 from nltk.corpus import wordnet as wn
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-class ChildSumTreeLSTM(RNNBase):
+class ChildSumGraphLSTM(RNNBase):
 	"""A bidirectional extension of child-sum tree LSTMs
+	For each node, the embedding is calculated recursively 
+	from all connected branches in the graph.
+	It supports bidirection and stacked layers
 
-	This class cannot be instantiated directly. Instead, use its subclasses:
-	  - ChildSumGraphTreeLSTM
-	  the naming is bad ik.....
+	This class cannot be instantiated directly. 
+	Instead, the following subclasses runs on the WordNet:
+	  - ChildSumGraphLSTM_WordNet
 	"""
 
 	__metaclass__ = ABCMeta
 
 	def __init__(self, *args, **kwargs):
-		super(ChildSumTreeLSTM, self).__init__('LSTM', *args, **kwargs)
+		super(ChildSumGraphLSTM, self).__init__('LSTM', *args, **kwargs)
 
 		# lru_cache is normally used as a decorator, but that usage
 		# leads to a global cache, where we need an instance specific
@@ -35,9 +39,9 @@ class ChildSumTreeLSTM(RNNBase):
 		return torch.tanh(x)
 
 	'''
-	given a synset (in '__')
+	given a synset (in '__' due to hashing)
 	use all its hypers and hypons to generate the new node embedding
-	recursive over the whole WN
+	recursively over the whole graph
 	'''
 	def forward(self, inputs, synset):
 		"""
@@ -48,29 +52,24 @@ class ChildSumTreeLSTM(RNNBase):
 			batch dimension x embedding dimension); the batch
 			dimension must always have size == 1, since this module
 			does not support minibatching
-		tree : nltk.DependencyGraph
-			must implement the following instance methods
-			- root_idx: all root indices in the tree
-			- children_idx: indices of children of a particular index
-			- parents_idx: indices of parents of a particular index
-			- is_terminal_idx: whether the node is terminal
 
-		synset: class 'nltk.corpus.reader.wordnet.Synset'
-		the current synset (node)
-		must be coverted to string by wn.synset().name()
-		and convert '.' to '__' due to hashing
+		synset: the name of a 'nltk.corpus.reader.wordnet.Synset'
+			the current synset (node)
+			must be coverted to string by wn.synset().name()
+			and convert '.' to '__' due to hashing
+
+		Due to the nltk.corpus.wordnet package support,
+		user does not have to provide the graph to the forward function
 
 		Returns
 		-------
-		hidden_all : torch.Tensor
-		hidden_final : torch.Tensor
-			the hidden state of the trees root node; if there are two
-			or more such nodes, the average of their hidden states is
-			returned
+		hidden_all: torch.Tensor
+			the updated hidden states of all connected nodes along the resursion process
+		hidden_final, cell_final: torch.Tensor
+			the final hidden state and cell state of the target synset node.
 		"""
 
 		# self._validate_inputs(inputs)
-		# ridx = tree.root_idx()
 
 		# used to store all updated embeddings
 		# of all the synsets that is connected and updated in this trun
@@ -90,16 +89,10 @@ class ChildSumTreeLSTM(RNNBase):
 			self._upward_downward(layer, 'up', inputs, synset)
 			# self._upward_downward(layer, 'down', inputs, synset)
 
-		# sort the indices; only really matters for constituency trees,
-		# since dependency trees can be linearized in the same order
-		# as the original inputs, while constituency trees will have
-		# more hidden states than there are inputs
-
-		# indices = tree.positions
 		# convert '__' to '.' due to hashing
 		synset = synset.replace('.', '__')
 
-		# the hidden states of all connected hyper and hypons in this turn
+		# the hidden states of all connected hyper and hypons during the recursion
 		# the final hidden state and cell state of the current synset
 		hidden_up = self.hidden_state[self.num_layers - 1]['up']
 		if self.bidirectional:
@@ -110,14 +103,13 @@ class ChildSumTreeLSTM(RNNBase):
 			hidden_final = torch.cat([hidden_up[synset], hidden_down[synset]])
 			cell_final = torch.cat([self.cell_state[self.num_layers - 1]['up'][synset], self.cell_state[self.num_layers - 1]['down'][synset]])
 
-			# print(hidden_down['abstraction__n__06'])
 		else:
 			hidden_all = [hidden_up[key] for key in self.hidden_state[self.num_layers - 1]['up'].keys()]
 			hidden_final = hidden_up[synset]
 			cell_final = self.cell_state[self.num_layers - 1]['up'][synset]
 
 		''''
-		support mini-batch? maybe later
+		support mini-batch? 
 		if self._has_batch_dimension:
 			if self.batch_first:
 				return hidden_all[None, :, :], hidden_final[None, :]
@@ -127,7 +119,7 @@ class ChildSumTreeLSTM(RNNBase):
 			return hidden_all, hidden_final
 		'''
 
-		# (the standard output size of LSTM you get it...)
+		# (the standard output size of LSTM)
 		return hidden_all, (hidden_final, cell_final)
 
 	'''
@@ -144,6 +136,7 @@ class ChildSumTreeLSTM(RNNBase):
 		# check to see whether this node has been computed on this
 		# layer in this direction, if so short circuit the rest of
 		# this function and return that result
+		# very useful in cyclic graphs
 		if synset in self.hidden_state[layer][direction]:
 			# print('short-circuit\n')
 			h_t = self.hidden_state[layer][direction][synset]
@@ -161,7 +154,7 @@ class ChildSumTreeLSTM(RNNBase):
 		oidx, (h_prev, c_prev) = self._construct_previous(layer, direction,
 														  inputs, synset)
 
-		# broadcasting and cast size 
+		# broadcasting and cast the tensor size 
 		# to calculate all the LSTM gates
 		if self.bias:
 			Wih, Whh, bih, bhh = self._get_parameters(layer, direction)
@@ -290,28 +283,22 @@ class ChildSumTreeLSTM(RNNBase):
 			# stack to a new tensor: (hidden_size, num_hyper/num_hypon)
 			h_prev = torch.stack(h_prev, 1)
 			c_prev = torch.stack(c_prev, 1)
-		else:
-			h_prev = torch.zeros(self.hidden_size, 1)
-			c_prev = torch.zeros(self.hidden_size, 1)
 
-		# TODO: CUDA support
 		# if it is a left node (no hyper/hypon), return 0 tensor
-		'''
-		elif inputs.is_cuda:
-			h_prev = torch.zeros(self.hidden_size, 1).cuda()
-			c_prev = torch.zeros(self.hidden_size, 1).cuda()
+		elif torch.cuda.is_available():
+			h_prev = torch.zeros(self.hidden_size, 1).to(device)
+			c_prev = torch.zeros(self.hidden_size, 1).to(device)
 		else:
 			h_prev = torch.zeros(self.hidden_size, 1)
 			c_prev = torch.zeros(self.hidden_size, 1)
-		'''
 
 		# (hidden_size, num_hyper/num_hypon)
 		return oidx, (h_prev, c_prev)
 
 
-class ChildSumGraphLSTM(ChildSumTreeLSTM):
+class ChildSumGraphLSTM_WordNet(ChildSumGraphLSTM):
 	"""A bidirectional extension of child-sum tree LSTMs
-
+		Only runs on the WordNet
 	"""
 
 	def _construct_x_t(self, layer, inputs, synset):
@@ -322,6 +309,8 @@ class ChildSumGraphLSTM(ChildSumTreeLSTM):
 		if layer > 0 and self.bidirectional:
 
 			# if the previous step did not calculate the hyper
+			# this is designed for the stacked version
+			# when the recursion order left some of the hypers uncalculated
 			if synset not in self.hidden_state[layer - 1]['up']:
 				self.hidden_state[layer - 1]['up'][synset] = self._upward_downward((layer - 1), 'up', inputs, synset)[0]
 
@@ -338,7 +327,7 @@ class ChildSumGraphLSTM(ChildSumTreeLSTM):
 
 def main():
 
-	test_graph = ChildSumGraphLSTM(input_size = 1, hidden_size = 1, num_layers = 2, bidirectional = True, bias = True)
+	test_graph = ChildSumGraphLSTM_WordNet(input_size = 1, hidden_size = 1, num_layers = 2, bidirectional = True, bias = True)
 	synset = wn.synset('dog.n.01').name()
 
 	import time

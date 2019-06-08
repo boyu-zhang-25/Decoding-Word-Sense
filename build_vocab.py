@@ -45,6 +45,30 @@ class Vocabulary(object):
 	def __len__(self):
 		return len(self.word2idx)
 
+# build the vocab for the WordNet synsets
+def build_vocab_synset():
+
+	i = 0
+	total_size = len(set(wn.all_synsets()))
+
+	# Create a vocab wrapper and add some special tokens.
+	vocab = Vocabulary()
+
+	# iterate through all definitions in the WN
+	for synset in wn.all_synsets():
+
+		# convert '.' to '__' for hashing
+		synset = synset.name().replace('.', '__')
+		vocab.add_word(synset)
+
+		i += 1
+		if i % 1000 == 0:
+			print("[{}/{}] synsets done.".format(i, total_size))
+
+	print("Total vocabulary size: {}".format(vocab.idx))
+	return vocab
+
+# build the vocab for the WordNet definitions
 def build_vocab(threshold):
 
 	"""Build a simple vocabulary wrapper."""
@@ -89,17 +113,20 @@ def build_vocab(threshold):
 	return vocab
 
 def main(args):
-	vocab = build_vocab(threshold = args.threshold)
+
+	# vocab = build_vocab(threshold = args.threshold)
+	vocab_synset = build_vocab_synset()
+	# print(vocab_synset('dog__n__01'))
 	vocab_path = args.vocab_path
 	with open(vocab_path, 'wb') as f:
-		pickle.dump(vocab, f)
+		pickle.dump(vocab_synset, f)
 	print("Saved the vocabulary wrapper to '{}'".format(vocab_path))
 
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 
-	parser.add_argument('--vocab_path', type = str, default = './data/vocab.pkl', 
+	parser.add_argument('--vocab_path', type = str, default = './data/synset_vocab.pkl', 
 						help = 'path for saving vocabulary wrapper')
 	parser.add_argument('--threshold', type = int, default = 0, 
 						help = 'minimum word count threshold')

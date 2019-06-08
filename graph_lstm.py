@@ -4,7 +4,9 @@ import pdb
 from abc import ABCMeta, abstractmethod
 from torch.nn.modules.dropout import Dropout
 from torch.nn.modules.rnn import RNNBase
-
+from torch.nn import Embedding
+import time
+import pickle
 if sys.version_info.major == 3:
 	from functools import lru_cache
 else:
@@ -14,10 +16,10 @@ from nltk.corpus import wordnet as wn
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class ChildSumGraphLSTM(RNNBase):
-	"""A bidirectional extension of child-sum tree LSTMs
+	"""A bidirectional extension of child-sum tree LSTMs that work on graphs
 	For each node, the embedding is calculated recursively 
 	from all connected branches in the graph.
-	It supports bidirection and stacked layers
+	It supports bidirection and stacked layers.
 
 	This class cannot be instantiated directly. 
 	Instead, the following subclasses runs on the WordNet:
@@ -26,13 +28,17 @@ class ChildSumGraphLSTM(RNNBase):
 
 	__metaclass__ = ABCMeta
 
-	def __init__(self, *args, **kwargs):
+	def __init__(self, synset_vocab, *args, **kwargs):
 		super(ChildSumGraphLSTM, self).__init__('LSTM', *args, **kwargs)
 
 		# lru_cache is normally used as a decorator, but that usage
 		# leads to a global cache, where we need an instance specific
 		# cache
 		self._get_parameters = lru_cache()(self._get_parameters)
+
+		# all synset embeddings and their indices
+		self.synset_vocab = synset_vocab
+		self.embedding = Embedding(synset_vocab.idx, self.input_size)
 
 	@staticmethod
 	def nonlinearity(x):
@@ -320,19 +326,32 @@ class ChildSumGraphLSTM_WordNet(ChildSumGraphLSTM):
 			x_t = self.hidden_state[layer - 1]['up'][synset]
 		else:
 
-			# TODO: sense embeddings
-			x_t = torch.randn(self.input_size)
+			# get the synset (sense) embedding
+			synset_idx = self.synset_vocab(synset)
+			lookup_tensor = torch.tensor([synset_idx], dtype = torch.long)
+			
+			# may add dropout
+			if self.dropout:
+				dropout = Dropout(p = self.dropout)
+				x_t = dropout(self.embedding(lookup_tensor))
+			else:
+				x_t = self.embedding(lookup_tensor)
 
 		return x_t
 
+# test run
 def main():
 
-	test_graph = ChildSumGraphLSTM_WordNet(input_size = 1, hidden_size = 1, num_layers = 2, bidirectional = True, bias = True)
+	with open('./data/synset_vocab.pkl', 'rb') as f:
+		synset_vocab = pickle.load(f)
+    print("Size of synset vocab: {}".format(synset_vocab.idx))
+
+    graph = ChildSumGraphLSTM_WordNet(synset_vocab = synset_vocab, input_size = 1, hidden_size = 1, num_layers = 2, bidirectional = True, bias = True)
 	synset = wn.synset('dog.n.01').name()
 
 	import time
 	start_time = time.time()
-	output = test_graph('input', synset)
+	output = graph('input', synset)
 	end_time = time.time()
 	print('time: {}'.format((end_time - start_time)))
 

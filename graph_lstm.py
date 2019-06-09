@@ -16,7 +16,7 @@ from nltk.corpus import wordnet as wn
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # test graph print
-old_depth = 3
+old_depth = 2
 
 class ChildSumGraphLSTM(RNNBase):
 	"""A bidirectional extension of child-sum tree LSTMs that work on graphs
@@ -58,10 +58,7 @@ class ChildSumGraphLSTM(RNNBase):
 		Parameters
 		----------
 		inputs : torch.Tensor
-			a 2D (steps x embedding dimension) or a 3D tensor (steps x
-			batch dimension x embedding dimension); the batch
-			dimension must always have size == 1, since this module
-			does not support minibatching
+			I do not need it anymore lmao
 
 		synset: the name of a 'nltk.corpus.reader.wordnet.Synset'
 			the current synset (node)
@@ -150,7 +147,7 @@ class ChildSumGraphLSTM(RNNBase):
 		# this function and return that result
 		# very useful in cyclic graphs
 		if synset in self.hidden_state[layer][direction]:
-			print('{}short-circuit synset: {}; direction: {}\n'.format('    ' * (old_depth - depth), synset, direction))
+			# print('{}short-circuit synset: {}; direction: {}\n'.format('    ' * (old_depth - depth), synset, direction))
 			h_t = self.hidden_state[layer][direction][synset]
 			c_t = self.cell_state[layer][direction][synset]
 
@@ -216,11 +213,12 @@ class ChildSumGraphLSTM(RNNBase):
 		self.hidden_state[layer][direction][synset] = h_t
 		self.cell_state[layer][direction][synset] = c_t
 
-		# if bidirectional and not calculated, get the embeddings of the opposite direction
+		# if bidirectional, get the embeddings of the opposite direction
+		# if already calculated, it will be short-circuit at the beginning of this method
 		if self.bidirectional:
-			if direction == 'up' and synset not in self.hidden_state[layer]['down']:
+			if direction == 'up':
 				self._upward_downward(layer, 'down', inputs, synset, depth)
-			elif synset not in self.hidden_state[layer]['up']:
+			else:
 				self._upward_downward(layer, 'up', inputs, synset, depth)
 
 		# (hidden_size)
@@ -289,7 +287,7 @@ class ChildSumGraphLSTM(RNNBase):
 				h_prev = torch.zeros(self.hidden_size, 1)
 				c_prev = torch.zeros(self.hidden_size, 1)
 
-			print('{}cut-off: {}; depth: {}; direction: {}\n'.format('    ' * (old_depth - depth), synset, depth, direction))
+			# print('{}cut-off: {}; depth: {}; direction: {}\n'.format('    ' * (old_depth - depth), synset, depth, direction))
 			return oidx, (h_prev, c_prev)
 
 		# find the all hyper/hypon synsets of the current nodes by the WN
@@ -301,10 +299,10 @@ class ChildSumGraphLSTM(RNNBase):
 		# recursively construct all embedding for the hypers/hypons
 		if len(oidx) > 0:
 			h_prev, c_prev = [], []
-			print('{}synset: {}; oidx: {} direction: {}\n'.format('    ' * (old_depth - depth), synset, oidx, direction))
+			# print('{}synset: {}; oidx: {} direction: {}\n'.format('    ' * (old_depth - depth), synset, oidx, direction))
 			for i in oidx:
 
-				print('{}{}:'.format('    ' * (old_depth - depth), i))
+				# print('{}{}:'.format('    ' * (old_depth - depth), i))
 				# get the h and c for each hyper/hypon
 				# (hidden_size)
 				h_prev_i, c_prev_i = self._upward_downward(layer, direction, inputs, i, depth)
@@ -339,10 +337,10 @@ class ChildSumGraphLSTM_WordNet(ChildSumGraphLSTM):
 		# otherwise, x_t comes from the sense embedding
 		if layer > 0 and self.bidirectional:
 
+			'''
 			# if the previous step did not calculate the hyper
 			# this is designed for the stacked version
 			# when the recursion order left some of the hypers uncalculated
-			'''
 			if synset not in self.hidden_state[layer - 1]['up']:
 				self.hidden_state[layer - 1]['up'][synset] = self._upward_downward((layer - 1), 'up', inputs, synset)[0]
 			'''
@@ -381,18 +379,18 @@ def main():
 	print("Size of synset vocab: {}".format(synset_vocab.idx))
 
 	graph = ChildSumGraphLSTM_WordNet(synset_vocab = synset_vocab, input_size = 256, hidden_size = 512, num_layers = 2, bidirectional = True, bias = True)
-	# graph.apply(init_weights)
+	graph.apply(init_weights)
 	synset = wn.synset('dog.n.01').name()
 
 	start_time = time.time()
 
 	# iterate through all synsets in the WN
-	graph('input', synset, depth = 3)
+	graph('input', synset, depth = 10)
 	'''
 	for synset in wn.all_synsets():
+		synset = synset.name()
 		print(synset)
-		graph('input', synset)
-		print('\n')
+		graph('input', synset, depth = 3)
 	'''
 	end_time = time.time()
 	print('time: {}'.format((end_time - start_time)))

@@ -15,6 +15,9 @@ else:
 from nltk.corpus import wordnet as wn
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+# test graph print
+old_depth = 3
+
 class ChildSumGraphLSTM(RNNBase):
 	"""A bidirectional extension of child-sum tree LSTMs that work on graphs
 	For each node, the embedding is calculated recursively by LSTM 
@@ -139,7 +142,6 @@ class ChildSumGraphLSTM(RNNBase):
 	'''
 	def _upward_downward(self, layer, direction, inputs, synset, depth):
 
-		# print(direction)
 		# convert '__' to '.' due to hashing
 		synset = synset.replace('.', '__')
 
@@ -148,7 +150,7 @@ class ChildSumGraphLSTM(RNNBase):
 		# this function and return that result
 		# very useful in cyclic graphs
 		if synset in self.hidden_state[layer][direction]:
-			print('short-circuit synset: {}; direction: {}\n'.format(synset, direction))
+			print('{}short-circuit synset: {}; direction: {}\n'.format('    ' * (old_depth - depth), synset, direction))
 			h_t = self.hidden_state[layer][direction][synset]
 			c_t = self.cell_state[layer][direction][synset]
 
@@ -214,11 +216,11 @@ class ChildSumGraphLSTM(RNNBase):
 		self.hidden_state[layer][direction][synset] = h_t
 		self.cell_state[layer][direction][synset] = c_t
 
-		# if bidirectional, get the embeddings of the opposite direction
+		# if bidirectional and not calculated, get the embeddings of the opposite direction
 		if self.bidirectional:
-			if direction == 'up':
+			if direction == 'up' and synset not in self.hidden_state[layer]['down']:
 				self._upward_downward(layer, 'down', inputs, synset, depth)
-			else:
+			elif synset not in self.hidden_state[layer]['up']:
 				self._upward_downward(layer, 'up', inputs, synset, depth)
 
 		# (hidden_size)
@@ -287,7 +289,7 @@ class ChildSumGraphLSTM(RNNBase):
 				h_prev = torch.zeros(self.hidden_size, 1)
 				c_prev = torch.zeros(self.hidden_size, 1)
 
-			print('cutoff: {}; depth: {}; direction: {}\n'.format(synset, depth, direction))
+			print('{}cut-off: {}; depth: {}; direction: {}\n'.format('    ' * (old_depth - depth), synset, depth, direction))
 			return oidx, (h_prev, c_prev)
 
 		# find the all hyper/hypon synsets of the current nodes by the WN
@@ -299,9 +301,10 @@ class ChildSumGraphLSTM(RNNBase):
 		# recursively construct all embedding for the hypers/hypons
 		if len(oidx) > 0:
 			h_prev, c_prev = [], []
-			print('synset: {}; oidx: {} direction: {}\n'.format(synset, oidx, direction))
+			print('{}synset: {}; oidx: {} direction: {}\n'.format('    ' * (old_depth - depth), synset, oidx, direction))
 			for i in oidx:
 
+				print('{}{}:'.format('    ' * (old_depth - depth), i))
 				# get the h and c for each hyper/hypon
 				# (hidden_size)
 				h_prev_i, c_prev_i = self._upward_downward(layer, direction, inputs, i, depth)

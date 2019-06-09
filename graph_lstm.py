@@ -50,7 +50,7 @@ class ChildSumGraphLSTM(RNNBase):
 	use all its hypers and hypons to generate the new node embedding
 	recursively over the whole graph
 	'''
-	def forward(self, inputs, synset):
+	def forward(self, inputs, synset, depth):
 		"""
 		Parameters
 		----------
@@ -64,6 +64,9 @@ class ChildSumGraphLSTM(RNNBase):
 			the current synset (node)
 			must be coverted to string by wn.synset().name()
 			and convert '.' to '__' due to hashing
+
+		depth: the max depth the recursion will go through the WordNet
+			use -1 for a complete resursion over the graph (may hit the Python max recursion depth error)
 
 		Due to the nltk.corpus.wordnet package support,
 		user does not have to provide the graph to the forward function
@@ -93,7 +96,7 @@ class ChildSumGraphLSTM(RNNBase):
 
 			# get the new node embedding by all its hypers and hypons
 			# start with hyper
-			self._upward_downward(layer, 'up', inputs, synset)
+			self._upward_downward(layer, 'up', inputs, synset, depth)
 			# self._upward_downward(layer, 'down', inputs, synset)
 
 		# convert '__' to '.' due to hashing
@@ -134,7 +137,7 @@ class ChildSumGraphLSTM(RNNBase):
 	find all its hyper/hypon embeddings recursively (in _construct_previous)
 	calculate the new embedding by the LSTM gates
 	'''
-	def _upward_downward(self, layer, direction, inputs, synset):
+	def _upward_downward(self, layer, direction, inputs, synset, depth):
 
 		# print(direction)
 		# convert '__' to '.' due to hashing
@@ -145,7 +148,7 @@ class ChildSumGraphLSTM(RNNBase):
 		# this function and return that result
 		# very useful in cyclic graphs
 		if synset in self.hidden_state[layer][direction]:
-			# print('short-circuit\n')
+			print('short-circuit synset: {}; direction: {}\n'.format(synset, direction))
 			h_t = self.hidden_state[layer][direction][synset]
 			c_t = self.cell_state[layer][direction][synset]
 
@@ -155,11 +158,11 @@ class ChildSumGraphLSTM(RNNBase):
 		x_t = self._construct_x_t(layer, inputs, synset)
 
 		# construct the hyper and hypon embedding recursively
+		# keep track of the depth of the recursion
 		# h_prev, c_prev: (hidden_size, num_hyper/num_hypon)
 		# convert '__' to '.' due to hashing
 		synset = synset.replace('__', '.')
-		oidx, (h_prev, c_prev) = self._construct_previous(layer, direction,
-														  inputs, synset)
+		oidx, (h_prev, c_prev) = self._construct_previous(layer, direction, inputs, synset, depth - 1)
 
 		# broadcasting and cast the tensor size 
 		# to calculate all the LSTM gates
@@ -211,9 +214,12 @@ class ChildSumGraphLSTM(RNNBase):
 		self.hidden_state[layer][direction][synset] = h_t
 		self.cell_state[layer][direction][synset] = c_t
 
-		# get the hypon
-		if self.bidirectional and direction == 'up':
-			self._upward_downward(layer, 'down', inputs, synset)
+		# if bidirectional, get the embeddings of the opposite direction
+		if self.bidirectional:
+			if direction == 'up':
+				self._upward_downward(layer, 'down', inputs, synset, depth)
+			else:
+				self._upward_downward(layer, 'up', inputs, synset, depth)
 
 		# (hidden_size)
 		return h_t, c_t
@@ -266,8 +272,23 @@ class ChildSumGraphLSTM(RNNBase):
 	'''
 	given the current synset (node, in '.') and the direction
 	recursively find all its hyper or hypon embeddings
+	limited to the max recursion depth
 	'''
-	def _construct_previous(self, layer, direction, inputs, synset):
+	def _construct_previous(self, layer, direction, inputs, synset, depth):
+
+		# if hit the max recursion depth
+		# return as if it has no more hyper/hypon
+		if depth == 0:
+			oidx = []
+			if torch.cuda.is_available():
+				h_prev = torch.zeros(self.hidden_size, 1).to(device)
+				c_prev = torch.zeros(self.hidden_size, 1).to(device)
+			else:
+				h_prev = torch.zeros(self.hidden_size, 1)
+				c_prev = torch.zeros(self.hidden_size, 1)
+
+			print('cutoff: {}; depth: {}; direction: {}\n'.format(synset, depth, direction))
+			return oidx, (h_prev, c_prev)
 
 		# find the all hyper/hypon synsets of the current nodes by the WN
 		if direction == 'up':
@@ -278,12 +299,12 @@ class ChildSumGraphLSTM(RNNBase):
 		# recursively construct all embedding for the hypers/hypons
 		if len(oidx) > 0:
 			h_prev, c_prev = [], []
-
+			print('synset: {}; oidx: {} direction: {}\n'.format(synset, oidx, direction))
 			for i in oidx:
 
 				# get the h and c for each hyper/hypon
 				# (hidden_size)
-				h_prev_i, c_prev_i = self._upward_downward(layer, direction, inputs, i)
+				h_prev_i, c_prev_i = self._upward_downward(layer, direction, inputs, i, depth)
 				h_prev.append(h_prev_i)
 				c_prev.append(c_prev_i)
 
@@ -311,15 +332,17 @@ class ChildSumGraphLSTM_WordNet(ChildSumGraphLSTM):
 	def _construct_x_t(self, layer, inputs, synset):
 
 		# find the x_t
-		# when at stacked layer, the input is the previous hidden state
+		# when at stacked layer, the input is the previous hidden states (maybe cat when bidirectional)
 		# otherwise, x_t comes from the sense embedding
 		if layer > 0 and self.bidirectional:
 
 			# if the previous step did not calculate the hyper
 			# this is designed for the stacked version
 			# when the recursion order left some of the hypers uncalculated
+			'''
 			if synset not in self.hidden_state[layer - 1]['up']:
 				self.hidden_state[layer - 1]['up'][synset] = self._upward_downward((layer - 1), 'up', inputs, synset)[0]
+			'''
 
 			x_t = torch.cat([self.hidden_state[layer - 1]['up'][synset], self.hidden_state[layer - 1]['down'][synset]])
 
@@ -354,14 +377,14 @@ def main():
 		synset_vocab = pickle.load(f)
 	print("Size of synset vocab: {}".format(synset_vocab.idx))
 
-	graph = ChildSumGraphLSTM_WordNet(synset_vocab = synset_vocab, input_size = 256, hidden_size = 512, num_layers = 1, bidirectional = True, bias = True)
+	graph = ChildSumGraphLSTM_WordNet(synset_vocab = synset_vocab, input_size = 256, hidden_size = 512, num_layers = 2, bidirectional = True, bias = True)
 	# graph.apply(init_weights)
 	synset = wn.synset('dog.n.01').name()
 
 	start_time = time.time()
 
 	# iterate through all synsets in the WN
-	graph('input', synset)
+	graph('input', synset, depth = 3)
 	'''
 	for synset in wn.all_synsets():
 		print(synset)

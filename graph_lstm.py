@@ -333,7 +333,7 @@ class ChildSumGraphLSTM_WordNet(ChildSumGraphLSTM):
 	def _construct_x_t(self, layer, inputs, synset):
 
 		# find the x_t
-		# when at stacked layer, the input is the previous hidden states (maybe cat when bidirectional)
+		# when at stacked layer, the input is the previous hidden states (maybe concat when bidirectional)
 		# otherwise, x_t comes from the sense embedding
 		if layer > 0 and self.bidirectional:
 

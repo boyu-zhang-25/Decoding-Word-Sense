@@ -42,7 +42,7 @@ class Encoder(nn.Module):
 
 		# dimension reduction for elmo
 		# 3 * 1024 ELMo -> 512
-		self.dimension_reduction_MLP = nn.Linear(self.embedding_size * 3, self.tuned_embed_size).to(self.device)
+		self.dimension_reduction = nn.Linear(self.embedding_size * 3, self.tuned_embed_size).to(self.device)
 
 		# construct a LSTM on top of ELMo
 		self.lstm = nn.LSTM(
@@ -86,7 +86,7 @@ class Encoder(nn.Module):
 		embedding = embedding.contiguous().view(sentence_length, batch_size, -1)
 		
 		# [sentence_length, batch_size, 512]
-		embedding = self._tune_embeddings(embedding)
+		embedding = torch.tanh(self.dimension_reduction(embedding))
 
 		return embedding
 
@@ -109,14 +109,14 @@ class Encoder(nn.Module):
 		processed_embedding = _process_embedding(embedding_new, tagged_sent)
 
 		# Run fine-tuning MLP on new word embedding and get sense embedding
-		# (new_seq, 256): batch is always 1 for SGD
+		# (new_seq, 256): batch is the new seq length
 		sense_embedding = self.mlp(processed_embedding).squeeze(1)
 
 		return sense_embedding
 
 	# average pool the phrases and remove untagged words
 	# deal with partially labeled or phrase-labeled sentences
-	# tagged_sent is the list may contain nltk tree from the SemCor
+	# tagged_sent is the list that contains nltk tree from the SemCor
 	def _process_embedding(self, embedding, tagged_sent):
 
 		new_embedding = []
@@ -137,8 +137,5 @@ class Encoder(nn.Module):
 
 		# concate the all-word embeddings
 		# (new_seq, batch, num_directions * hidden_size)
-		return torch.cat(new_embedding, dim = 0)
-
-	# 3 * 1024 -> 512 by dimension reduction
-	def _tune_embeddings(self, embedding):
-		return torch.tanh(self.dimension_reduction_MLP(embedding))
+		result = torch.cat(new_embedding, dim = 0).to(device)
+		return result

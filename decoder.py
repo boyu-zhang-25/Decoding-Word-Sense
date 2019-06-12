@@ -39,7 +39,6 @@ class Decoder(nn.Module):
 		'''
 		the predicted word in the embedding:
 		sense_embedding (batch_size, embed_size): concat of the encoder embedding and the generated word embedding
-		batch_size = 1 for SGD
 		hidden, cell of shape (batch, hidden_size)
 		'''
 

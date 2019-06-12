@@ -75,26 +75,27 @@ class Seq2Seq_Model(nn.Module):
 		the matrix with row as seq and column as words: indices of each word in the true definition
 
 		sentence: the given sentence in a list
-		tagged_sent: the target sentence (list) that may contain nltk tree from the SemCor
+		tagged_sent: the target sentence (list) that contains nltk tree from the SemCor
 		'''
 
-		# SGD
-		batch_size = 1
+		# treating one sentence as a batch for all-word WSD
+		# each word is an example for the decoder
+		batch_size = len(tagged_sent)
 		
 		# tensor to store decoder outputs
 		outputs = torch.zeros(self.max_length, batch_size, self.vocab_size).to(self.device)
 
 		# initialize the x_0 with <start>
-		# (1, word_embed_size)
+		# (batch_size, word_embed_size)
 		lookup_tensor = torch.tensor([self.start_idx], dtype = torch.long)
-		generated_embedding = self.dropout(self.embed(lookup_tensor))
+		generated_embedding = self.dropout(self.embed(lookup_tensor)).repeat(batch_size)
 		
-		# sense embedding of the encode
-		# (1, word_embed_size)
-		encoder_embedding = self.encoder(sentence, word_idx)
+		# sense embedding from the encoder
+		# (seq_length, 256): batch is the seq length
+		encoder_embedding = self.encoder(sentence, tagged_sent)
 
 		# concat of the encoder embedding and the generated word embedding
-		# (1, decoder.embed_size)
+		# (batch_size, decoder.embed_size)
 		sense_embedding = torch.cat((encoder_embedding, generated_embedding), 1)
 
 		# initialize h_0 and c_0 for the decoder LSTM_Cell
@@ -112,16 +113,21 @@ class Seq2Seq_Model(nn.Module):
 			# get the max word index from the vocabulary
 			generated_index = output.max(1)[1]
 
+			# final word choices for all words in this sentence
+			word_index = []
+
+			# get the generated word index for each word in the batch
 			# may use the correct word from the definition
-			teacher_force = random.random() < teacher_forcing_ratio
-			if teacher_force:
-				word_index = definition[t]
-			else:
-				word_index = generated_index
+			for batch in batch_size:
+				teacher_force = random.random() < teacher_forcing_ratio
+				if teacher_force:
+					word_index.append(definition[batch, t])
+				else:
+					word_index.append(generated_index[batch, t])
 
 			# get the new embedding
 			# concat the encoder embedding to the generated embedding at each time step
-			lookup_tensor = torch.tensor([word_index], dtype = torch.long)
+			lookup_tensor = torch.tensor(word_index, dtype = torch.long)
 			generated_embedding = self.dropout(self.embed(lookup_tensor))
 			sense_embedding = torch.cat((encoder_embedding, generated_embedding), 1)
 

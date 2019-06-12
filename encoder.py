@@ -5,6 +5,7 @@ import math
 from collections import Iterable, defaultdict
 import itertools
 from nltk.corpus import wordnet as wn
+from nltk.tree import Tree
 
 '''
 the encoder to encode the target word sense in the given context
@@ -20,7 +21,7 @@ class Encoder(nn.Module):
 				tuned_embed_size = 512,
 				mlp_dropout = 0,
 				lstm_hidden_size = 256, # bi-directional, so final size is 512
-				MLP_sizes = [300], # 1 hidden layer for fine-tuning sense vector
+				MLP_size = 300, # 1 hidden layer for fine-tuning sense vector
 				device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
 		super(Encoder, self).__init__()
 		
@@ -35,57 +36,31 @@ class Encoder(nn.Module):
 		self.embedding_size = embedding_size
 
 		# sizes of the fine-tuning MLP and LSTM
-		self.MLP_sizes = MLP_sizes 
+		self.MLP_size = MLP_size
 		self.output_size = output_size
 		self.lstm_hidden_size = lstm_hidden_size
-
-		## initialize fine-tuning MLP layers
-		self.layers = nn.ModuleDict()
-		self.mlp_dropout = nn.Dropout(mlp_dropout) 
 
 		# dimension reduction for elmo
 		# 3 * 1024 ELMo -> 512
 		self.dimension_reduction_MLP = nn.Linear(self.embedding_size * 3, self.tuned_embed_size).to(self.device)
 
 		# construct a LSTM on top of ELMo
-		self.lstm = nn.LSTM(self.tuned_embed_size, self.lstm_hidden_size, num_layers = 2, bidirectional = True).to(self.device)
+		self.lstm = nn.LSTM(
+						self.tuned_embed_size, 
+						self.lstm_hidden_size, 
+						num_layers = 2, 
+						bidirectional = True).to(self.device)
 
-		# build a 2-layer MLP on top of LSTM for fine-tuning
-		self._init_MLP(self.lstm_hidden_size * 2, self.MLP_sizes, self.output_size, param = "word_sense")
-
-
-	def _init_MLP(self, input_size, hidden_sizes, output_size, param = None):
-		'''
-		Initialize a 2-layer MLP on top of ELMo
-		w1: input_size * hidden_sizes[0]
-		w2: hidden_sizes[0] * output_size
-		'''
-
-		# dict for fine-tuning MLP structures
-		self.layers[param] = nn.ModuleList()
-
-		# initialize MLP
-		for h in hidden_sizes:
-
-			layer = torch.nn.Linear(input_size, h)
-			layer = layer.to(self.device)
-
-			# append to the fine-tuning MLP
-			self.layers[param].append(layer)
-
-			# update dimension
-			input_size = h
-
-			# ReLU activation after linear layer
-			layer = nn.ReLU()
-			layer = layer.to(self.device)
-			self.layers[param].append(layer)            
-
-		# (300, 256)
-		output_layer = torch.nn.Linear(input_size, output_size)
-		output_layer = output_layer.to(self.device)
-		self.layers[param].append(output_layer)
-		
+		# build a 1-hidden-layer MLP on top of LSTM for fine-tuning
+		self.mlp = nn.Sequential(
+					nn.Linear(self.lstm_hidden_size * 2, self.MLP_size), 
+					nn.ReLU(),
+					nn.Dropout(self.mlp_dropout), 
+					nn.Linear(self.MLP_size, self.output_size), 
+					nn.Dropout(self.mlp_dropout)).to(self.device)
+	
+	# for the input sentence (already tokenized and pooled phrases from SemCor)
+	# get the ELMo embeddings of the given sentence		
 	def _get_embedding(self, sentence):
 		'''
 			@param: a list of words (a sentence)
@@ -93,16 +68,15 @@ class Encoder(nn.Module):
 			@return: 
 			ELMo embeddins of the sentence (for all three ELMo layers each 1024 dim)
 			concatenates them to make a 3072 dim embedding vector
-			reduces the dimension to a lower number (256)
+			reduces the dimension to a lower number (512)
 		''' 
 
 		# get ELMo embedding of the sentence
-		# torch.Size([3 (layers), sentence length, 1024 (word vector length)])
+		# [3 (layers), sentence length, 1024 (word vector length)]
 		embedding = torch.from_numpy(self.elmo_class.embed_sentence(sentence))
 		embedding = embedding.to(self.device)
 
-		# old: [3 (layers), sentence_length, 1024 (word vector length)]
-		# new: [sentence_length, 3 (layers), word_embedding_size]
+		# [sentence_length, 3 (layers), 1024 (word vector length)]
 		embedding = embedding.permute(1, 0, 2)
 
 		# concatenate 3 layers and reshape
@@ -118,11 +92,9 @@ class Encoder(nn.Module):
 
 
 	# forward propagation selected sentence and definitions
-	def forward(self, sentence, word_idx):
+	# all-word WSD from the SemCor dataset
+	def forward(self, sentence, tagged_sent):
 		
-		# preserve word lemma for future use
-		word_lemma = '____' + sentence[word_idx]
-
 		# get the dimension-reduced ELMo embedding
 		# [sentence_length, batch_size, 512]
 		embedding = self._get_embedding(sentence)
@@ -132,29 +104,41 @@ class Encoder(nn.Module):
 		self.lstm.flatten_parameters()
 		embedding_new, (hn, cn) = self.lstm(embedding)
 
-		# Extract the new word embedding by index
-		# (1, batch, num_directions * hidden_size)
-		word_embedding = embedding_new[word_idx, :, :]
+		# Extract the new word embedding for all tagged words
+		# (new_seq, batch, num_directions * hidden_size)
+		processed_embedding = _process_embedding(embedding_new, tagged_sent)
 
 		# Run fine-tuning MLP on new word embedding and get sense embedding
-		# (1, 256), batch is always 1 for SGD
-		sense_embedding = self._run_fine_tune_MLP(word_embedding, word_lemma, param = "word_sense")
-		sense_embedding = sense_embedding.view(1, -1)
+		# (new_seq, 256): batch is always 1 for SGD
+		sense_embedding = self.mlp(processed_embedding).squeeze(1)
 
 		return sense_embedding
 
+	# average pool the phrases and remove untagged words
+	# deal with partially labeled or phrase-labeled sentences
+	# tagged_sent is the list may contain nltk tree from the SemCor
+	def _process_embedding(self, embedding, tagged_sent):
 
-	# 3 * 1024 -> 256 by dimension reduction
+		new_embedding = []
+		for idx, chunk in enumerate(tagged_sent):
+
+			# if it is tagged as a nltk tree
+			if isinstance(chunk, Tree):
+
+				# if is a single tagged word
+				if isinstance(chunk[0], str):
+					new_embedding.append(embedding[idx, :, :])
+
+				# if is a tagged phrase in a sub tree
+				else:
+					# take the average pooling
+					sub_embedding = torch.mean(embedding[idx : idx + len(chunk[0]), :, :], dim = 0, keepdim = True)
+					new_embedding.append(sub_embedding)
+
+		# concate the all-word embeddings
+		# (new_seq, batch, num_directions * hidden_size)
+		return torch.cat(new_embedding, dim = 0)
+
+	# 3 * 1024 -> 512 by dimension reduction
 	def _tune_embeddings(self, embedding):
 		return torch.tanh(self.dimension_reduction_MLP(embedding))
-	
-	def _run_fine_tune_MLP(self, word_embedding, word_lemma, param = "word_sense"):
-		
-		'''
-		Runs MLP on the target word embedding
-		'''
-		for layer in self.layers[param]:
-			word_embedding = layer(word_embedding)
-			word_embedding = self.mlp_dropout(word_embedding)
-
-		return word_embedding

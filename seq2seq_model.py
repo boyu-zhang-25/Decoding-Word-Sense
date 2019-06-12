@@ -65,13 +65,17 @@ class Seq2Seq_Model(nn.Module):
 		self.embed = nn.Embedding(decoder.vocab_size, self.word_embed_size, padding_idx = self.pad_idx)
 		self.dropout = nn.Dropout(dropout)
 
-	def forward(self, sentence, word_idx, definition, teacher_forcing_ratio = 0.4):
+	# perform all-word WSD on the SemCor dataset
+	def forward(self, sentence, tagged_sent, definition, teacher_forcing_ratio = 0.4):
 		
 		'''
 		teacher_forcing: the probability of using ground truth in decoding
-		definnition: [1, self.max_length], the indices of each word in the true definition
+
+		definition: [seq_length, self.max_length]
+		the matrix with row as seq and column as words: indices of each word in the true definition
+
 		sentence: the given sentence in a list
-		word_idx: the target word index in the sentence
+		tagged_sent: the target sentence (list) that may contain nltk tree from the SemCor
 		'''
 
 		# SGD

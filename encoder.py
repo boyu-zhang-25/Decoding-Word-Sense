@@ -6,7 +6,6 @@ from collections import Iterable, defaultdict
 import itertools
 import nltk
 from nltk.corpus import wordnet as wn
-from nltk.tree import Tree
 
 '''
 the encoder to encode the target word sense in the given context
@@ -116,31 +115,29 @@ class Encoder(nn.Module):
 
 	# average pool the phrases and remove untagged words
 	# deal with partially labeled or phrase-labeled sentences
-	# tagged_sent is the list that contains nltk tree from the SemCor
+	# tagged_sent is the list of tagged words from the SemCor
 	def _process_embedding(self, embedding, tagged_sent):
 
 		new_embedding = []
+		# print(tagged_sent)
 		for idx, chunk in enumerate(tagged_sent):
 
-			# if it is tagged as a nltk tree
-			if isinstance(chunk, Tree):
+			# if is a single tagged word
+			# only keep ambiguous words
+			if len(chunk) == 1 and isinstance(chunk.label(), nltk.corpus.reader.wordnet.Lemma):
+				# print(chunk.label())
+				new_embedding.append(embedding[idx, :, :])
+				# print(chunk)
+				# print(embedding[idx, :, :].shape)
 
-				# if is a single tagged word
-				# only keep ambiguous words
-				if len(chunk) == 1 and isinstance(chunk.label(), nltk.corpus.reader.wordnet.Lemma):
-					# print(chunk.label())
-					new_embedding.append(embedding[idx, :, :])
-					# print(chunk)
-					# print(embedding[idx, :, :].shape)
-
-				# if is a tagged phrase in a sub tree
-				elif isinstance(chunk.label(), nltk.corpus.reader.wordnet.Lemma):
-					# take the average pooling
-					# print(chunk.label())
-					sub_embedding = torch.mean(embedding[idx : idx + len(chunk[0]), :, :], dim = 0)
-					new_embedding.append(sub_embedding)
-					# print(chunk)
-					# print(sub_embedding.shape)
+			# if is a tagged phrase in a sub tree
+			elif isinstance(chunk.label(), nltk.corpus.reader.wordnet.Lemma):
+				# take the average pooling
+				# print(chunk.label())
+				sub_embedding = torch.mean(embedding[idx : idx + len(chunk[0]), :, :], dim = 0)
+				new_embedding.append(sub_embedding)
+				# print(chunk)
+				# print(sub_embedding.shape)
 
 		# concate the all-word embeddings
 		# (new_seq, num_directions * hidden_size)

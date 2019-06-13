@@ -70,8 +70,8 @@ class Emb2Seq_Model(nn.Module):
 		definition: [seq_length, self.max_length]
 		the matrix with row as seq and column as words: indices of each word in the true definition
 
-		sentence: the given sentence in a list
-		tagged_sent: the target sentence (list) that contains nltk tree from the SemCor
+		sentence: the given plain sentence in a list
+		tagged_sent: the target sentence (list) with only tagged words from the SemCor
 		'''
 		
 		# sense embedding from the encoder

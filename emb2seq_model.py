@@ -16,7 +16,7 @@ print(torch.cuda.device_count())
 baseline model: encoder-decoder
 feed the encoder result directly to the decoder
 '''
-class Seq2Seq_Model(nn.Module):
+class Emb2Seq_Model(nn.Module):
 
 	def __init__(self,
 				encoder,
@@ -25,12 +25,8 @@ class Seq2Seq_Model(nn.Module):
 				word_embed_size = 256,
 				dropout = 0, 
 				regularization = None,
-				all_senses = None,
 				device = device):
-		super(Seq2Seq_Model, self).__init__()
-		
-		# taget word index and senses list
-		self.all_senses = all_senses
+		super(Emb2Seq_Model, self).__init__()
 		self.device = device
 
 		# the word embedding size for the nn.Embedding
@@ -77,10 +73,15 @@ class Seq2Seq_Model(nn.Module):
 		sentence: the given sentence in a list
 		tagged_sent: the target sentence (list) that contains nltk tree from the SemCor
 		'''
+		
+		# sense embedding from the encoder
+		# (seq_length, 256): batch is the seq_length for all-word WSD
+		encoder_embedding = self.encoder(sentence, tagged_sent)
+		# print(encoder_embedding.shape)
 
 		# treating one sentence as a batch for all-word WSD
 		# each word is an example for the decoder
-		batch_size = len(tagged_sent)
+		batch_size = encoder_embedding.shape[0]
 		
 		# tensor to store decoder outputs
 		outputs = torch.zeros(self.max_length, batch_size, self.vocab_size).to(self.device)
@@ -88,11 +89,8 @@ class Seq2Seq_Model(nn.Module):
 		# initialize the x_0 with <start>
 		# (batch_size, word_embed_size)
 		lookup_tensor = torch.tensor([self.start_idx], dtype = torch.long)
-		generated_embedding = self.dropout(self.embed(lookup_tensor)).repeat(batch_size)
-		
-		# sense embedding from the encoder
-		# (seq_length, 256): batch is the seq length
-		encoder_embedding = self.encoder(sentence, tagged_sent)
+		generated_embedding = self.dropout(self.embed(lookup_tensor)).repeat(batch_size, 1)
+		# print(generated_embedding.shape)
 
 		# concat of the encoder embedding and the generated word embedding
 		# (batch_size, decoder.embed_size)
@@ -102,33 +100,40 @@ class Seq2Seq_Model(nn.Module):
 		hidden = torch.zeros(batch_size, self.decoder.hidden_size).to(self.device)
 		cell = torch.zeros(batch_size, self.decoder.hidden_size).to(self.device)
 
+		# visualize the result
+		result = []
+
 		# explicitly iterate through the max_length to decode
-		for t in range(0, self.max_length):
+		for t in range(self.max_length):
 			
 			# get embedding at each time step from the LSTM
 			# (batch, vocab_size), (batch, decoder.hidden_size)
 			output, hidden, cell = self.decoder(sense_embedding, hidden, cell)
+			# print(output.shape)
 			outputs[t] = output
 
 			# get the max word index from the vocabulary
-			generated_index = output.max(1)[1]
+			_, generated_index = torch.max(output, dim = 1)
+			result.append(generated_index)
 
 			# final word choices for all words in this sentence
 			word_index = []
 
 			# get the generated word index for each word in the batch
 			# may use the correct word from the definition
-			for batch in batch_size:
+			# print('batch: {}'.format(batch_size))
+			for batch in range(batch_size):
 				teacher_force = random.random() < teacher_forcing_ratio
 				if teacher_force:
-					word_index.append(definition[batch, t])
+					word_index.append(definition[batch][t])
 				else:
-					word_index.append(generated_index[batch, t])
+					word_index.append(generated_index[batch])
 
 			# get the new embedding
 			# concat the encoder embedding to the generated embedding at each time step
 			lookup_tensor = torch.tensor(word_index, dtype = torch.long)
 			generated_embedding = self.dropout(self.embed(lookup_tensor))
+			# print(generated_embedding.shape)			
 			sense_embedding = torch.cat((encoder_embedding, generated_embedding), 1)
 
-		return outputs
+		return outputs, result

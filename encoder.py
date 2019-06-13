@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import math
 from collections import Iterable, defaultdict
 import itertools
+import nltk
 from nltk.corpus import wordnet as wn
 from nltk.tree import Tree
 
@@ -14,7 +15,6 @@ generate the sense embedding of the word
 '''
 class Encoder(nn.Module):
 	def __init__(self, 
-				all_senses = None,
 				output_size = 256, # output size of each sense embedding [256, 1]
 				embedding_size = 1024, # ELMo embedding size
 				elmo_class = None,
@@ -27,7 +27,6 @@ class Encoder(nn.Module):
 		
 		# all senses for all words
 		# useful for all purposes
-		self.all_senses = all_senses
 		self.elmo_class = elmo_class
 		self.device = device
 
@@ -39,6 +38,7 @@ class Encoder(nn.Module):
 		self.MLP_size = MLP_size
 		self.output_size = output_size
 		self.lstm_hidden_size = lstm_hidden_size
+		self.mlp_dropout = mlp_dropout
 
 		# dimension reduction for elmo
 		# 3 * 1024 ELMo -> 512
@@ -55,9 +55,9 @@ class Encoder(nn.Module):
 		self.mlp = nn.Sequential(
 					nn.Linear(self.lstm_hidden_size * 2, self.MLP_size), 
 					nn.ReLU(),
-					nn.Dropout(self.mlp_dropout), 
+					nn.Dropout(p = self.mlp_dropout), 
 					nn.Linear(self.MLP_size, self.output_size), 
-					nn.Dropout(self.mlp_dropout)).to(self.device)
+					nn.Dropout(p = self.mlp_dropout)).to(self.device)
 	
 	# for the input sentence (already tokenized and pooled phrases from SemCor)
 	# get the ELMo embeddings of the given sentence		
@@ -106,7 +106,7 @@ class Encoder(nn.Module):
 
 		# Extract the new word embedding for all tagged words
 		# (new_seq, batch, num_directions * hidden_size)
-		processed_embedding = _process_embedding(embedding_new, tagged_sent)
+		processed_embedding = self._process_embedding(embedding_new, tagged_sent)
 
 		# Run fine-tuning MLP on new word embedding and get sense embedding
 		# (new_seq, 256): batch is the new seq length
@@ -126,16 +126,23 @@ class Encoder(nn.Module):
 			if isinstance(chunk, Tree):
 
 				# if is a single tagged word
-				if isinstance(chunk[0], str):
+				# only keep ambiguous words
+				if len(chunk) == 1 and isinstance(chunk.label(), nltk.corpus.reader.wordnet.Lemma):
+					# print(chunk.label())
 					new_embedding.append(embedding[idx, :, :])
+					# print(chunk)
+					# print(embedding[idx, :, :].shape)
 
 				# if is a tagged phrase in a sub tree
-				else:
+				elif isinstance(chunk.label(), nltk.corpus.reader.wordnet.Lemma):
 					# take the average pooling
-					sub_embedding = torch.mean(embedding[idx : idx + len(chunk[0]), :, :], dim = 0, keepdim = True)
+					# print(chunk.label())
+					sub_embedding = torch.mean(embedding[idx : idx + len(chunk[0]), :, :], dim = 0)
 					new_embedding.append(sub_embedding)
+					# print(chunk)
+					# print(sub_embedding.shape)
 
 		# concate the all-word embeddings
-		# (new_seq, batch, num_directions * hidden_size)
-		result = torch.cat(new_embedding, dim = 0).to(device)
+		# (new_seq, num_directions * hidden_size)
+		result = torch.cat(new_embedding, dim = 0).to(self.device)
 		return result

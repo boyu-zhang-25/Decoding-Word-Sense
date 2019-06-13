@@ -7,10 +7,7 @@ import itertools
 import random
 from encoder import *
 from decoder import *
-
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-print('Device: {}'.format(device))
-print(torch.cuda.device_count())
 
 '''
 baseline model: encoder-decoder
@@ -51,8 +48,8 @@ class Emb2Seq_Model(nn.Module):
 		self.max_length = decoder.max_seq_length
 		self.vocab_size = decoder.vocab_size
 
-		self.encoder = self.encoder.to(self.device)
-		self.decoder = self.decoder.to(self.device)
+		self.encoder = self.encoder
+		self.decoder = self.decoder
 
 		# word embedding for decoding sense
 		self.pad_idx = vocab('<pad>')
@@ -81,20 +78,20 @@ class Emb2Seq_Model(nn.Module):
 
 		# treating one sentence as a batch for all-word WSD
 		# each word is an example for the decoder
-		batch_size = encoder_embedding.shape[0]
+		batch_size = len(tagged_sent)
 		
 		# tensor to store decoder outputs
 		outputs = torch.zeros(self.max_length, batch_size, self.vocab_size).to(self.device)
 
 		# initialize the x_0 with <start>
 		# (batch_size, word_embed_size)
-		lookup_tensor = torch.tensor([self.start_idx], dtype = torch.long)
-		generated_embedding = self.dropout(self.embed(lookup_tensor)).repeat(batch_size, 1)
+		lookup_tensor = torch.tensor([self.start_idx], dtype = torch.long).to(self.device)
+		generated_embedding = self.dropout(self.embed(lookup_tensor)).repeat(batch_size, 1).to(self.device)
 		# print(generated_embedding.shape)
 
 		# concat of the encoder embedding and the generated word embedding
 		# (batch_size, decoder.embed_size)
-		sense_embedding = torch.cat((encoder_embedding, generated_embedding), 1)
+		sense_embedding = torch.cat((encoder_embedding, generated_embedding), 1).to(self.device)
 
 		# initialize h_0 and c_0 for the decoder LSTM_Cell
 		hidden = torch.zeros(batch_size, self.decoder.hidden_size).to(self.device)
@@ -131,9 +128,9 @@ class Emb2Seq_Model(nn.Module):
 
 			# get the new embedding
 			# concat the encoder embedding to the generated embedding at each time step
-			lookup_tensor = torch.tensor(word_index, dtype = torch.long)
-			generated_embedding = self.dropout(self.embed(lookup_tensor))
+			lookup_tensor = torch.tensor(word_index, dtype = torch.long).to(self.device)
+			generated_embedding = self.dropout(self.embed(lookup_tensor)).to(self.device)
 			# print(generated_embedding.shape)			
-			sense_embedding = torch.cat((encoder_embedding, generated_embedding), 1)
+			sense_embedding = torch.cat((encoder_embedding, generated_embedding), 1).to(self.device)
 
 		return outputs, result

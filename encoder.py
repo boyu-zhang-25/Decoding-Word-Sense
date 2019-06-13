@@ -41,14 +41,14 @@ class Encoder(nn.Module):
 
 		# dimension reduction for elmo
 		# 3 * 1024 ELMo -> 512
-		self.dimension_reduction = nn.Linear(self.embedding_size * 3, self.tuned_embed_size).to(self.device)
+		self.dimension_reduction = nn.Linear(self.embedding_size * 3, self.tuned_embed_size)
 
 		# construct a LSTM on top of ELMo
 		self.lstm = nn.LSTM(
 						self.tuned_embed_size, 
 						self.lstm_hidden_size, 
 						num_layers = 2, 
-						bidirectional = True).to(self.device)
+						bidirectional = True)
 
 		# build a 1-hidden-layer MLP on top of LSTM for fine-tuning
 		self.mlp = nn.Sequential(
@@ -56,7 +56,7 @@ class Encoder(nn.Module):
 					nn.ReLU(),
 					nn.Dropout(p = self.mlp_dropout), 
 					nn.Linear(self.MLP_size, self.output_size), 
-					nn.Dropout(p = self.mlp_dropout)).to(self.device)
+					nn.Dropout(p = self.mlp_dropout))
 	
 	# for the input sentence (already tokenized and pooled phrases from SemCor)
 	# get the ELMo embeddings of the given sentence		
@@ -92,6 +92,7 @@ class Encoder(nn.Module):
 
 	# forward propagation selected sentence and definitions
 	# all-word WSD from the SemCor dataset
+	# tagged_sent is the list of XML elements for each word or phrase
 	def forward(self, sentence, tagged_sent):
 		
 		# get the dimension-reduced ELMo embedding
@@ -99,45 +100,27 @@ class Encoder(nn.Module):
 		embedding = self._get_embedding(sentence)
 
 		# Run a Bi-LSTM and get the sense embedding
-		# (seq_len, batch, num_directions * hidden_size)
+		# (seq_len, batch, num_directions * hidden_size): batch = 1 here
 		self.lstm.flatten_parameters()
 		embedding_new, (hn, cn) = self.lstm(embedding)
 
 		# Extract the new word embedding for all tagged words
 		# (new_seq, batch, num_directions * hidden_size)
-		processed_embedding = self._process_embedding(embedding_new, tagged_sent)
+		processed_embedding = self._process_embedding(sentence, embedding_new, tagged_sent)
 
 		# Run fine-tuning MLP on new word embedding and get sense embedding
-		# (new_seq, 256): batch is the new seq length
-		sense_embedding = self.mlp(processed_embedding).squeeze(1)
-
+		# (new_seq, 256): new seq length is the number of tagged words/phrases
+		sense_embedding = self.mlp(processed_embedding)
+		# print(sense_embedding.shape)
 		return sense_embedding
 
 	# average pool the phrases and remove untagged words
 	# deal with partially labeled or phrase-labeled sentences
 	# tagged_sent is the list of tagged words from the SemCor
-	def _process_embedding(self, embedding, tagged_sent):
+	def _process_embedding(self, sentence, embedding, tagged_sent):
 
-		new_embedding = []
-		# print(tagged_sent)
-		for idx, chunk in enumerate(tagged_sent):
-
-			# if is a single tagged word
-			# only keep ambiguous words
-			if len(chunk) == 1 and isinstance(chunk.label(), nltk.corpus.reader.wordnet.Lemma):
-				# print(chunk.label())
-				new_embedding.append(embedding[idx, :, :])
-				# print(chunk)
-				# print(embedding[idx, :, :].shape)
-
-			# if is a tagged phrase in a sub tree
-			elif isinstance(chunk.label(), nltk.corpus.reader.wordnet.Lemma):
-				# take the average pooling
-				# print(chunk.label())
-				sub_embedding = torch.mean(embedding[idx : idx + len(chunk[0]), :, :], dim = 0)
-				new_embedding.append(sub_embedding)
-				# print(chunk)
-				# print(sub_embedding.shape)
+		# only get those tagged phrases and words 
+		new_embedding = [embedding[sentence.index(instance.text), :, :] for instance in tagged_sent]
 
 		# concate the all-word embeddings
 		# (new_seq, num_directions * hidden_size)

@@ -121,9 +121,6 @@ import xml.etree.ElementTree as ET
 tree = ET.parse('../WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.data.xml')
 corpus = tree.getroot()
 
-# parse the target sense tag 
-target_file = open("../WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.gold.key.txt", "r")
-
 # small sets of SemCor
 small_train_size = 50
 small_dev_size = 60
@@ -138,6 +135,9 @@ def train(model, optimizer, corpus, criterion, clip):
 	model.train()
 	epoch_loss = 0
 	sentence_num = 0
+
+	# parse the target sense tag 
+	target_file = open("../WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.gold.key.txt", "r")
 
 	# result from all dev sentences
 	all_sentence_result = []
@@ -195,7 +195,8 @@ def train(model, optimizer, corpus, criterion, clip):
 
 				optimizer.step()
 				epoch_loss += loss.item()
-		
+	
+	target_file.close()	
 	return epoch_loss / sentence_num, all_sentence_result
 
 
@@ -208,6 +209,9 @@ def evaluate(model, corpus, criterion):
 	model.eval()
 	epoch_loss = 0
 	sentence_num = 0
+
+	# parse the target sense tag 
+	target_file = open("../WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.gold.key.txt", "r")
 
 	# result from all dev sentences
 	all_sentence_result = []
@@ -255,7 +259,8 @@ def evaluate(model, corpus, criterion):
 
 					loss = criterion(output, target)      
 					epoch_loss += loss.item()
-							
+	
+	target_file.close()					
 	return epoch_loss / sentence_num , all_sentence_result
 
 
@@ -310,7 +315,7 @@ for epoch in range(N_EPOCHS):
 	# save the best model based on the dev set
 	if valid_loss <= best_valid_loss:
 		best_valid_loss = valid_loss
-		torch.save(seq2seq_model.state_dict(), 'best_model.pth')
+		torch.save(emb2seq_model.state_dict(), 'best_model.pth')
 
 		with open('result.txt', 'w') as f:
 			for idx, arranged_results in enumerate(arranged_all_sentence_result):

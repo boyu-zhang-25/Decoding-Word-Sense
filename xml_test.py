@@ -38,8 +38,8 @@ for text in corpus:
 print(text_num)
 print(sentence_num)
 print(instance_num)
-print(sum(text_list[0:150]))
-print(sum(text_list[150:170]))
+print(sum(text_list[0:50]))
+print(sum(text_list[50:60]))
 
 f = open("../WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.gold.key.txt", "r")
 s1 = f.readline().replace('\n', '').split(' ')[-1]

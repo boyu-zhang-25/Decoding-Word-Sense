@@ -43,8 +43,8 @@ from emb2seq_model import *
 
 # get the decoder vocab
 with open('./data/vocab.pkl', 'rb') as f:
-    vocab = pickle.load(f)
-    print("Size of vocab: {}".format(vocab.idx))
+	vocab = pickle.load(f)
+	print("Size of vocab: {}".format(vocab.idx))
 
 
 # In[4]:
@@ -56,8 +56,8 @@ emb2seq_model = Emb2Seq_Model(encoder, decoder, vocab = vocab)
 
 # randomly initialize the weights
 def init_weights(m):
-    for name, param in m.named_parameters():
-        nn.init.uniform_(param.data, -0.08, 0.08)       
+	for name, param in m.named_parameters():
+		nn.init.uniform_(param.data, -0.08, 0.08)       
 emb2seq_model.apply(init_weights)
 
 
@@ -83,33 +83,33 @@ criterion = nn.CrossEntropyLoss(ignore_index = PAD_IDX).to(device)
 # utility function
 # turn the given definition into its index list form
 def def2idx(definition, max_length, vocab):
-    
-    # definition is given by the WN NLTK API in a string
-    def_tokens = nltk.tokenize.word_tokenize(definition.lower())
-    
-    # limit the length if too long, trim
-    if len(def_tokens) > (max_length - 2):
-        def_tokens = def_tokens[0:(max_length - 2)]
-        
-        # add the start and end symbol
-        def_tokens = ['<start>'] + def_tokens + ['<end>']
-    
-    # if the length is too short, pad
-    elif len(def_tokens) < (max_length - 2):
-        
-        # add the start and end symbol
-        def_tokens = ['<start>'] + def_tokens + ['<end>']
-        
-        pad = ['<pad>'] * (max_length - len(def_tokens))
-        def_tokens = def_tokens + pad
-        
-    else:
-        def_tokens = ['<start>'] + def_tokens + ['<end>']
-            
-    # get the index for each element in the token list
-    def_idx_list = [vocab(token) for token in def_tokens]
-    
-    return def_idx_list
+	
+	# definition is given by the WN NLTK API in a string
+	def_tokens = nltk.tokenize.word_tokenize(definition.lower())
+	
+	# limit the length if too long, trim
+	if len(def_tokens) > (max_length - 2):
+		def_tokens = def_tokens[0:(max_length - 2)]
+		
+		# add the start and end symbol
+		def_tokens = ['<start>'] + def_tokens + ['<end>']
+	
+	# if the length is too short, pad
+	elif len(def_tokens) < (max_length - 2):
+		
+		# add the start and end symbol
+		def_tokens = ['<start>'] + def_tokens + ['<end>']
+		
+		pad = ['<pad>'] * (max_length - len(def_tokens))
+		def_tokens = def_tokens + pad
+		
+	else:
+		def_tokens = ['<start>'] + def_tokens + ['<end>']
+			
+	# get the index for each element in the token list
+	def_idx_list = [vocab(token) for token in def_tokens]
+	
+	return def_idx_list
   
 
 
@@ -125,8 +125,8 @@ corpus = tree.getroot()
 target_file = open("../WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.gold.key.txt", "r")
 
 # small sets of SemCor
-small_train_size = 1
-small_dev_size = 2
+small_train_size = 50
+small_dev_size = 60
 
 
 # In[12]:
@@ -134,65 +134,69 @@ small_dev_size = 2
 
 # the training function
 def train(model, optimizer, corpus, criterion, clip):
-    
-    model.train()
-    epoch_loss = 0
-    sentence_num = 0
-    
-    for sub_corpus in corpus[0:small_train_size]:
-    
-        for sent in sub_corpus[0:20]:
+	
+	model.train()
+	epoch_loss = 0
+	sentence_num = 0
 
-            optimizer.zero_grad()
-            
-            # get the plain text sentence
-            sentence = [word.text for word in sent]
-            
-            # get the tagged ambiguous words
-            tagged_sent = [instance for instance in sent if instance.tag == 'instance']
-            # print(sentence)
-            # print(tagged_sent)
-            
-            # only use sentence with at least one tagged word
-            if len(tagged_sent) > 0:
-                
-                sentence_num += 1
-                
-                # get all-word definitions, batch_size is the sentence length
-                # [batch_size, self.max_length]
-                definitions = []
-                for instance in tagged_sent:
-                    
-                    # get the sense from the WN
-                    # senses are in-order already
-                    key = target_file.readline().replace('\n', '').split(' ')[-1]
-                    definition = wn.lemma_from_key(key).synset().definition()
-                    # print(definition)
-                    def_idx_list = def2idx(definition, model.max_length, vocab)
-                    # print(def_idx_list)
-                    definitions.append(def_idx_list)
+	# result from all dev sentences
+	all_sentence_result = []
 
-                # get the encoder-decoder result
-                # (self.max_length, batch_size, vocab_size)
-                output, result = model(sentence, tagged_sent, definitions, teacher_forcing_ratio = 0.4)
+	for sub_corpus in corpus[0:small_train_size]:
+	
+		for sent in sub_corpus:
 
-                # adjust dimension for loss calculation
-                # (self.max_length * batch_size, vocab_size)
-                output = output.view(-1, output.shape[-1])
-                target = torch.tensor(definitions, dtype = torch.long).to(device)
-                # (self.max_length * batch_size)
-                target = torch.transpose(target, 0, 1).contiguous().view(-1)
+			optimizer.zero_grad()
+			
+			# get the plain text sentence
+			sentence = [word.text for word in sent]
+			
+			# get the tagged ambiguous words
+			tagged_sent = [instance for instance in sent if instance.tag == 'instance']
+			# print(sentence)
+			# print(tagged_sent)
+			
+			# only use sentence with at least one tagged word
+			if len(tagged_sent) > 0:
+				
+				sentence_num += 1
+				
+				# get all-word definitions, batch_size is the sentence length
+				# [batch_size, self.max_length]
+				definitions = []
+				for instance in tagged_sent:
+					
+					# get the sense from the WN
+					# senses are in-order already
+					key = target_file.readline().replace('\n', '').split(' ')[-1]
+					definition = wn.lemma_from_key(key).synset().definition()
+					# print(definition)
+					def_idx_list = def2idx(definition, model.max_length, vocab)
+					# print(def_idx_list)
+					definitions.append(def_idx_list)
 
-                loss = criterion(output, target)
-                loss.backward()
+				# get the encoder-decoder result
+				# (self.max_length, batch_size, vocab_size)
+				output, result = model(sentence, tagged_sent, definitions, teacher_forcing_ratio = 0.4)
+				all_sentence_result.append(result)
 
-                # add clip for gradient boost
-                torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
+				# adjust dimension for loss calculation
+				# (self.max_length * batch_size, vocab_size)
+				output = output.view(-1, output.shape[-1])
+				target = torch.tensor(definitions, dtype = torch.long).to(device)
+				# (self.max_length * batch_size)
+				target = torch.transpose(target, 0, 1).contiguous().view(-1)
 
-                optimizer.step()
-                epoch_loss += loss.item()
-        
-    return epoch_loss / sentence_num, result
+				loss = criterion(output, target)
+				loss.backward()
+
+				# add clip for gradient boost
+				# torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
+
+				optimizer.step()
+				epoch_loss += loss.item()
+		
+	return epoch_loss / sentence_num, all_sentence_result
 
 
 # In[13]:
@@ -200,55 +204,59 @@ def train(model, optimizer, corpus, criterion, clip):
 
 # evaluate the model
 def evaluate(model, corpus, criterion):
-    
-    model.eval()
-    epoch_loss = 0
-    sentence_num = 0
-        
-    with torch.no_grad():
-    
-        for sub_corpus in corpus[small_train_size:small_dev_size]:
-    
-            for sent in sub_corpus[0:5]:
-            
-                sentence = [word.text for word in sent]
-                
-                # get the tagged ambiguous words
-                tagged_sent = [instance for instance in sent if instance.tag == 'instance']
-                # print(sentence)
-                # print(tagged_sent)
+	
+	model.eval()
+	epoch_loss = 0
+	sentence_num = 0
 
-                # only use sentence with at least one tagged word
-                if len(tagged_sent) > 0:
-                    sentence_num += 1
+	# result from all dev sentences
+	all_sentence_result = []
 
-                    # get all-word definitions, batch_size is the sentence length
-                    # [batch_size, self.max_length]
-                    definitions = []
-                    for instance in tagged_sent:
+	with torch.no_grad():
+	
+		for sub_corpus in corpus[small_train_size:small_dev_size]:
+	
+			for sent in sub_corpus:
+			
+				sentence = [word.text for word in sent]
+				
+				# get the tagged ambiguous words
+				tagged_sent = [instance for instance in sent if instance.tag == 'instance']
+				# print(sentence)
+				# print(tagged_sent)
 
-                        # get the sense from the WN
-                        # senses are in-order already
-                        key = target_file.readline().replace('\n', '').split(' ')[-1]
-                        definition = wn.lemma_from_key(key).synset().definition()                 
-                        def_idx_list = def2idx(definition, model.max_length, vocab)
-                        definitions.append(def_idx_list)
+				# only use sentence with at least one tagged word
+				if len(tagged_sent) > 0:
+					sentence_num += 1
 
-                    # get the encoder-decoder result
-                    # (self.max_length, batch_size, vocab_size)
-                    output, result = model(sentence, tagged_sent, definitions, teacher_forcing_ratio = 0.4)
+					# get all-word definitions, batch_size is the sentence length
+					# [batch_size, self.max_length]
+					definitions = []
+					for instance in tagged_sent:
 
-                    # adjust dimension for loss calculation
-                    # (self.max_length * batch_size, vocab_size)
-                    output = output.view(-1, output.shape[-1])
-                    target = torch.tensor(definitions, dtype = torch.long).to(device)
-                    # (self.max_length * batch_size)
-                    target = torch.transpose(target, 0, 1).contiguous().view(-1)
+						# get the sense from the WN
+						# senses are in-order already
+						key = target_file.readline().replace('\n', '').split(' ')[-1]
+						definition = wn.lemma_from_key(key).synset().definition()                 
+						def_idx_list = def2idx(definition, model.max_length, vocab)
+						definitions.append(def_idx_list)
 
-                    loss = criterion(output, target).to(device)         
-                    epoch_loss += loss.item()
-                            
-    return epoch_loss / sentence_num , result
+					# get the encoder-decoder result
+					# (self.max_length, batch_size, vocab_size)
+					output, result = model(sentence, tagged_sent, definitions, teacher_forcing_ratio = 0)
+					all_sentence_result.append(result)
+
+					# adjust dimension for loss calculation
+					# (self.max_length * batch_size, vocab_size)
+					output = output.view(-1, output.shape[-1])
+					target = torch.tensor(definitions, dtype = torch.long).to(device)
+					# (self.max_length * batch_size)
+					target = torch.transpose(target, 0, 1).contiguous().view(-1)
+
+					loss = criterion(output, target)      
+					epoch_loss += loss.item()
+							
+	return epoch_loss / sentence_num , all_sentence_result
 
 
 # In[14]:
@@ -256,10 +264,10 @@ def evaluate(model, corpus, criterion):
 
 # time used by each epoch
 def epoch_time(start_time, end_time):
-    elapsed_time = end_time - start_time
-    elapsed_mins = int(elapsed_time / 60)
-    elapsed_secs = int(elapsed_time - (elapsed_mins * 60))
-    return elapsed_mins, elapsed_secs
+	elapsed_time = end_time - start_time
+	elapsed_mins = int(elapsed_time / 60)
+	elapsed_secs = int(elapsed_time - (elapsed_mins * 60))
+	return elapsed_mins, elapsed_secs
 
 
 # In[15]:
@@ -268,53 +276,52 @@ def epoch_time(start_time, end_time):
 # train and evaluate
 import time
 
-N_EPOCHS = 50
+N_EPOCHS = 40
 CLIP = 1
 best_valid_loss = float('inf')
 train_losses = []
 dev_losses = []
 
 for epoch in range(N_EPOCHS):
-    
-    start_time = time.time()
-    
-    train_loss, _ = train(emb2seq_model, optimizer, corpus, criterion, CLIP)
-    train_losses.append(train_loss)
-    
-    valid_loss, result = evaluate(emb2seq_model, corpus, criterion)
-    dev_losses.append(valid_loss)
-        
-    end_time = time.time()
-    epoch_mins, epoch_secs = epoch_time(start_time, end_time)
-    
-    # visualize the results
-    all_results = []
-    for n in range(len(result[0])):
-        sense = ''
-        for m in range(len(result)):
-            w = ' '+ vocab.idx2word.get(int(result[m][n]))
-            sense += w
-        all_results.append(sense)
-    with open('result.txt', 'w') as f:
-        for item in all_results:
-            f.write("%s\n" % item)
-            
-    # save the best model based on the dev set
-    '''
-    if valid_loss <= best_valid_loss:
-        best_valid_loss = valid_loss
-        torch.save(seq2seq_model.state_dict(), 'best_model.pth')
-    '''
-    
-    print(f'Epoch: {epoch+1:02} | Time: {epoch_mins}m {epoch_secs}s')
-    print(f'\tTrain Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f}')
-    print(f'\t Val. Loss: {valid_loss:.3f} |  Val. PPL: {math.exp(valid_loss):7.3f}')
+	
+	start_time = time.time()
+	
+	train_loss, _ = train(emb2seq_model, optimizer, corpus, criterion, CLIP)
+	train_losses.append(train_loss)
+	
+	valid_loss, all_sentence_result = evaluate(emb2seq_model, corpus, criterion)
+	dev_losses.append(valid_loss)
+		
+	end_time = time.time()
+	epoch_mins, epoch_secs = epoch_time(start_time, end_time)
+	
+	# visualize the results
+	arranged_all_sentence_result = []
+	for result in all_sentence_result:
+		arranged_results = []
+		for n in range(len(result[0])):
+			sense = ''
+			for m in range(len(result)):
+				w = ' '+ vocab.idx2word.get(int(result[m][n]))
+				sense += w
+			arranged_results.append(sense)
+		arranged_all_sentence_result.append(arranged_results)
 
+	# save the best model based on the dev set
+	if valid_loss <= best_valid_loss:
+		best_valid_loss = valid_loss
+		torch.save(seq2seq_model.state_dict(), 'best_model.pth')
 
-# In[ ]:
-
-
-vocab('<pad>')
+		with open('result.txt', 'w') as f:
+			for idx, arranged_results in enumerate(arranged_all_sentence_result):
+				f.write("sentence {}\n".format(idx))
+				for item in arranged_results:
+					f.write("%s\n" % item)
+				f.write("\n")
+	
+	print(f'Epoch: {epoch+1:02} | Time: {epoch_mins}m {epoch_secs}s')
+	print(f'\tTrain Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f}')
+	print(f'\t Val. Loss: {valid_loss:.3f} |  Val. PPL: {math.exp(valid_loss):7.3f}')
 
 
 # In[ ]:
@@ -326,12 +333,12 @@ import matplotlib.pyplot as plt
 from matplotlib import rc
 
 with open('train_loss.tsv', mode = 'w') as loss_file:
-    csv_writer = csv.writer(loss_file)
-    csv_writer.writerow(train_losses)
+	csv_writer = csv.writer(loss_file)
+	csv_writer.writerow(train_losses)
 
 with open('dev_loss.tsv', mode = 'w') as loss_file: 
-    csv_writer = csv.writer(loss_file)
-    csv_writer.writerow(dev_losses)
+	csv_writer = csv.writer(loss_file)
+	csv_writer.writerow(dev_losses)
 
 
 # In[ ]:

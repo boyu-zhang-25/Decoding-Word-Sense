@@ -47,7 +47,7 @@ with open('./data/vocab.pkl', 'rb') as f:
     print("Size of vocab: {}".format(vocab.idx))
 
 
-# In[ ]:
+# In[4]:
 
 
 decoder = Decoder(vocab_size = vocab.idx)
@@ -61,22 +61,23 @@ def init_weights(m):
 emb2seq_model.apply(init_weights)
 
 
-# In[ ]:
+# In[5]:
 
 
-# training hyperparameters
-optimizer = optim.Adam(emb2seq_model.parameters())
-PAD_IDX = vocab('<pad>')
-print('PAD_IDX: {}'.format(PAD_IDX))
-criterion = nn.CrossEntropyLoss(ignore_index = PAD_IDX)
-
+#cuda
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print('Device: {}'.format(device))
 print(torch.cuda.device_count())
 emb2seq_model.to(device)
 
+# training hyperparameters
+optimizer = optim.Adam(emb2seq_model.parameters(), lr = 0.1)
+PAD_IDX = vocab('<pad>')
+print('PAD_IDX: {}'.format(PAD_IDX))
+criterion = nn.CrossEntropyLoss(ignore_index = PAD_IDX).to(device)
 
-# In[ ]:
+
+# In[6]:
 
 
 # utility function
@@ -112,37 +113,38 @@ def def2idx(definition, max_length, vocab):
   
 
 
-# In[ ]:
+# In[7]:
 
 
 # parse the SemCor training data
 import xml.etree.ElementTree as ET
-tree = ET.parse('../../Downloads/WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.data.xml')
+tree = ET.parse('../WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.data.xml')
 corpus = tree.getroot()
 
 # parse the target sense tag 
-target_file = open("../../Downloads/WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.gold.key.txt", "r")
+target_file = open("../WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.gold.key.txt", "r")
 
-
-# In[ ]:
-
-
+# small sets of SemCor
 small_train_size = 1
-small_dev_size = 1
+small_dev_size = 2
+
+
+# In[12]:
+
 
 # the training function
 def train(model, optimizer, corpus, criterion, clip):
     
     model.train()
     epoch_loss = 0
-    sn = 0
+    sentence_num = 0
     
-    for sub_corpus in corpus:
+    for sub_corpus in corpus[0:small_train_size]:
     
-        for sent in sub_corpus:
+        for sent in sub_corpus[0:20]:
 
             optimizer.zero_grad()
-
+            
             # get the plain text sentence
             sentence = [word.text for word in sent]
             
@@ -154,8 +156,7 @@ def train(model, optimizer, corpus, criterion, clip):
             # only use sentence with at least one tagged word
             if len(tagged_sent) > 0:
                 
-                print(sn)
-                sn += 1
+                sentence_num += 1
                 
                 # get all-word definitions, batch_size is the sentence length
                 # [batch_size, self.max_length]
@@ -165,8 +166,10 @@ def train(model, optimizer, corpus, criterion, clip):
                     # get the sense from the WN
                     # senses are in-order already
                     key = target_file.readline().replace('\n', '').split(' ')[-1]
-                    definition = wn.lemma_from_key(key).synset().definition()                 
+                    definition = wn.lemma_from_key(key).synset().definition()
+                    # print(definition)
                     def_idx_list = def2idx(definition, model.max_length, vocab)
+                    # print(def_idx_list)
                     definitions.append(def_idx_list)
 
                 # get the encoder-decoder result
@@ -174,12 +177,13 @@ def train(model, optimizer, corpus, criterion, clip):
                 output, result = model(sentence, tagged_sent, definitions, teacher_forcing_ratio = 0.4)
 
                 # adjust dimension for loss calculation
-                '''
-                output = output.permute(1, 2, 0)
-                # print(output.shape)
+                # (self.max_length * batch_size, vocab_size)
+                output = output.view(-1, output.shape[-1])
                 target = torch.tensor(definitions, dtype = torch.long).to(device)
+                # (self.max_length * batch_size)
+                target = torch.transpose(target, 0, 1).contiguous().view(-1)
 
-                loss = criterion(output, target).to(device)
+                loss = criterion(output, target)
                 loss.backward()
 
                 # add clip for gradient boost
@@ -187,62 +191,67 @@ def train(model, optimizer, corpus, criterion, clip):
 
                 optimizer.step()
                 epoch_loss += loss.item()
-                '''
         
-    return epoch_loss / small_test_size, result
+    return epoch_loss / sentence_num, result
 
 
-# In[ ]:
+# In[13]:
 
 
 # evaluate the model
-def evaluate(model, criterion):
+def evaluate(model, corpus, criterion):
     
     model.eval()
     epoch_loss = 0
-    
+    sentence_num = 0
+        
     with torch.no_grad():
     
-        for idx in range(small_dev_size):
+        for sub_corpus in corpus[small_train_size:small_dev_size]:
+    
+            for sent in sub_corpus[0:5]:
+            
+                sentence = [word.text for word in sent]
+                
+                # get the tagged ambiguous words
+                tagged_sent = [instance for instance in sent if instance.tag == 'instance']
+                # print(sentence)
+                # print(tagged_sent)
 
-            # get the semcor tagged sentence
-            sentence = semcor.sents()[idx + small_train_size]
-            tagged_sent = semcor.tagged_sents(tag = 'sem')[idx + small_train_size]
-            print(idx)
+                # only use sentence with at least one tagged word
+                if len(tagged_sent) > 0:
+                    sentence_num += 1
 
-            # get all-word definitions
-            # [batch_size, self.max_length]
-            definitions = []
-            for idx, chunk in enumerate(tagged_sent):
-                if isinstance(chunk, Tree):
+                    # get all-word definitions, batch_size is the sentence length
+                    # [batch_size, self.max_length]
+                    definitions = []
+                    for instance in tagged_sent:
 
-                    # only take in ambiguous words
-                    if isinstance(chunk.label(), nltk.corpus.reader.wordnet.Lemma):
-                        # print(chunk.label())
-                        synset = chunk.label().synset().name()
-                        definition = wn.synset(synset).definition()
-                        
-                        print(definition)
+                        # get the sense from the WN
+                        # senses are in-order already
+                        key = target_file.readline().replace('\n', '').split(' ')[-1]
+                        definition = wn.lemma_from_key(key).synset().definition()                 
                         def_idx_list = def2idx(definition, model.max_length, vocab)
                         definitions.append(def_idx_list)
 
-            # get the encoder-decoder result
-            # (max_length, batch_size, vocab_size)
-            # turn off teacher forcing
-            output, result = model(sentence, tagged_sent, definitions, teacher_forcing_ratio = 0)
+                    # get the encoder-decoder result
+                    # (self.max_length, batch_size, vocab_size)
+                    output, result = model(sentence, tagged_sent, definitions, teacher_forcing_ratio = 0.4)
 
-            # adjust dimension for loss calculation
-            output = output.permute(1, 2, 0)
-            # print(output.shape)
-            target = torch.tensor(definitions, dtype = torch.long).to(device)
+                    # adjust dimension for loss calculation
+                    # (self.max_length * batch_size, vocab_size)
+                    output = output.view(-1, output.shape[-1])
+                    target = torch.tensor(definitions, dtype = torch.long).to(device)
+                    # (self.max_length * batch_size)
+                    target = torch.transpose(target, 0, 1).contiguous().view(-1)
 
-            loss = criterion(output, target).to(device)         
-            epoch_loss += loss.item()
-        
-    return epoch_loss / small_dev_size, result
+                    loss = criterion(output, target).to(device)         
+                    epoch_loss += loss.item()
+                            
+    return epoch_loss / sentence_num , result
 
 
-# In[ ]:
+# In[14]:
 
 
 # time used by each epoch
@@ -253,37 +262,43 @@ def epoch_time(start_time, end_time):
     return elapsed_mins, elapsed_secs
 
 
-# In[ ]:
+# In[15]:
 
 
 # train and evaluate
 import time
 
-N_EPOCHS = 1
+N_EPOCHS = 50
 CLIP = 1
 best_valid_loss = float('inf')
+train_losses = []
+dev_losses = []
 
 for epoch in range(N_EPOCHS):
     
     start_time = time.time()
     
     train_loss, _ = train(emb2seq_model, optimizer, corpus, criterion, CLIP)
-    # valid_loss, result = evaluate(emb2seq_model, criterion)
-    # print(result)
+    train_losses.append(train_loss)
     
+    valid_loss, result = evaluate(emb2seq_model, corpus, criterion)
+    dev_losses.append(valid_loss)
+        
     end_time = time.time()
-    
     epoch_mins, epoch_secs = epoch_time(start_time, end_time)
     
     # visualize the results
-    '''
+    all_results = []
     for n in range(len(result[0])):
-        sense = []
+        sense = ''
         for m in range(len(result)):
-            w = vocab.idx2word.get(int(result[m][n]))
-            sense.append(w)
-        print(sense)
-    '''
+            w = ' '+ vocab.idx2word.get(int(result[m][n]))
+            sense += w
+        all_results.append(sense)
+    with open('result.txt', 'w') as f:
+        for item in all_results:
+            f.write("%s\n" % item)
+            
     # save the best model based on the dev set
     '''
     if valid_loss <= best_valid_loss:
@@ -293,7 +308,13 @@ for epoch in range(N_EPOCHS):
     
     print(f'Epoch: {epoch+1:02} | Time: {epoch_mins}m {epoch_secs}s')
     print(f'\tTrain Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f}')
-    # print(f'\t Val. Loss: {valid_loss:.3f} |  Val. PPL: {math.exp(valid_loss):7.3f}')
+    print(f'\t Val. Loss: {valid_loss:.3f} |  Val. PPL: {math.exp(valid_loss):7.3f}')
+
+
+# In[ ]:
+
+
+vocab('<pad>')
 
 
 # In[ ]:
@@ -305,13 +326,10 @@ import matplotlib.pyplot as plt
 from matplotlib import rc
 
 with open('train_loss.tsv', mode = 'w') as loss_file:
-        
     csv_writer = csv.writer(loss_file)
     csv_writer.writerow(train_losses)
 
-    
-with open('dev_loss.tsv', mode = 'w') as loss_file:
-        
+with open('dev_loss.tsv', mode = 'w') as loss_file: 
     csv_writer = csv.writer(loss_file)
     csv_writer.writerow(dev_losses)
 
@@ -325,7 +343,7 @@ rc('font', family='serif')
 plt.grid(True, ls = '-.',alpha = 0.4)
 plt.plot(train_losses, ms = 4, marker = 's', label = "Train Loss")
 plt.legend(loc = "best")
-title = "Cosine Similarity Loss (number of examples: " + str(len(train_X)) + ")"
+title = "CrossEntropy Loss"
 plt.title(title)
 plt.ylabel('Loss')
 plt.xlabel('Number of Iteration')
@@ -342,7 +360,7 @@ rc('font', family='serif')
 plt.grid(True, ls = '-.',alpha = 0.4)
 plt.plot(dev_losses, ms = 4, marker = 'o', label = "Dev Loss")
 plt.legend(loc = "best")
-title = "Cosine Similarity Loss (number of examples: " + str(len(dev_X)) + ")"
+title = "CrossEntropy Loss"
 plt.title(title)
 plt.ylabel('Loss')
 plt.xlabel('Number of Iteration')

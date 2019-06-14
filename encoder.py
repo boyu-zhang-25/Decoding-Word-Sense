@@ -105,7 +105,7 @@ class Encoder(nn.Module):
 		embedding_new, (hn, cn) = self.lstm(embedding)
 
 		# Extract the new word embedding for all tagged words
-		# (new_seq, batch, num_directions * hidden_size)
+		# (new_seq, num_directions * hidden_size)
 		processed_embedding = self._process_embedding(sentence, embedding_new, tagged_sent)
 
 		# Run fine-tuning MLP on new word embedding and get sense embedding

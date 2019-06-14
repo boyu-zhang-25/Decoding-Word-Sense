@@ -12,7 +12,7 @@ class Decoder(nn.Module):
 				vocab_size,
 				embed_size = 512, # concat the sense embedding and the generated word embedding (2 * 256)
 				hidden_size = 256, # length of the generated word embedding 
-				max_seq_length = 17, # max length of definition generated is 15 with <start> and <end>
+				max_seq_length = 20, # max length of definition generated is 18 with <start> and <end>
 				device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
 
 		"""Build the layers in the decoder."""

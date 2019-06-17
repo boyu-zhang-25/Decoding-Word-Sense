@@ -51,36 +51,40 @@ with open('./data/vocab.pkl', 'rb') as f:
 
 # In[4]:
 
+# some hyperparameters
+max_seq_length = 20
+decoder_hidden_size = 256
 
-decoder = Decoder(vocab_size = vocab.idx)
+decoder = Decoder(vocab_size = vocab.idx, max_seq_length = max_seq_length, hidden_size = decoder_hidden_size)
 encoder = Encoder(elmo_class = elmo)
-emb2seq_model = Emb2Seq_Model(encoder, decoder, vocab = vocab)
+
+
+# In[5]:
+
+
+# cuda
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print('Device: {}'.format(device))
+
+# data parallel for the decoder
+if torch.cuda.device_count() > 1:
+	print("Let's use", torch.cuda.device_count(), "GPUs!")
+	decoder = nn.DataParallel(decoder)
+
+# create the model instance
+emb2seq_model = Emb2Seq_Model(encoder, decoder, vocab = vocab, max_seq_length = max_seq_length, decoder_hidden_size = decoder_hidden_size)
+emb2seq_model.to(device)
+optimizer = optim.Adam(emb2seq_model.parameters())
 
 # randomly initialize the weights
 def init_weights(m):
     for name, param in m.named_parameters():
         if param.requires_grad:
             print(name, param.shape)
-        # nn.init.uniform_(param.data, -0.08, 0.08)
-        
+        # nn.init.uniform_(param.data, -0.08, 0.08)   
 emb2seq_model.apply(init_weights)
 
-
-# In[5]:
-
-
-#cuda
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-print('Device: {}'.format(device))
-
-# data parallel
-if torch.cuda.device_count() > 1:
-	print("Let's use", torch.cuda.device_count(), "GPUs!")
-	# emb2seq_model = nn.DataParallel(emb2seq_model)
-emb2seq_model.to(device)
-
-# training hyperparameters
-optimizer = optim.Adam(emb2seq_model.parameters())
+# ignore idx on the padding
 PAD_IDX = vocab('<pad>')
 print('PAD_IDX: {}'.format(PAD_IDX))
 criterion = nn.CrossEntropyLoss(ignore_index = PAD_IDX).to(device)
@@ -148,8 +152,8 @@ tree = ET.parse('../WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.data
 corpus = tree.getroot()
 
 # small sets of SemCor
-small_train_size = 50
-small_dev_size = 60
+small_train_size = 
+small_dev_size = 
 
 
 # In[9]:
@@ -199,6 +203,7 @@ def train(model, optimizer, corpus, criterion, clip):
                 # (self.max_length * batch_size, vocab_size)
                 output = output.view(-1, output.shape[-1])
                 target = torch.tensor(definitions, dtype = torch.long).to(device)
+
                 # (self.max_length * batch_size)
                 target = torch.transpose(target, 0, 1).contiguous().view(-1)
                 '''

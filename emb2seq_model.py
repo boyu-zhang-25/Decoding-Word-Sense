@@ -19,6 +19,8 @@ class Emb2Seq_Model(nn.Module):
 				encoder,
 				decoder,
 				vocab,
+				max_seq_length,
+				decoder_hidden_size,
 				word_embed_size = 256,
 				dropout = 0, 
 				regularization = None,
@@ -45,17 +47,15 @@ class Emb2Seq_Model(nn.Module):
 
 		self.encoder = encoder
 		self.decoder = decoder
-		self.max_length = decoder.max_seq_length
-		self.vocab_size = decoder.vocab_size
-
-		self.encoder = self.encoder
-		self.decoder = self.decoder
+		self.max_length = max_seq_length
+		self.vocab_size = vocab.idx
+		self.decoder_hidden_size = decoder_hidden_size
 
 		# word embedding for decoding sense
 		self.pad_idx = vocab('<pad>')
 		self.start_idx = vocab('<start>')
 		self.end_idx = vocab('<end>')
-		self.embed = nn.Embedding(decoder.vocab_size, self.word_embed_size, padding_idx = self.pad_idx)
+		self.embed = nn.Embedding(vocab.idx, self.word_embed_size, padding_idx = self.pad_idx)
 		self.dropout = nn.Dropout(dropout)
 
 	# perform all-word WSD on the SemCor dataset
@@ -94,8 +94,8 @@ class Emb2Seq_Model(nn.Module):
 		sense_embedding = torch.cat((encoder_embedding, generated_embedding), 1).to(self.device)
 
 		# initialize h_0 and c_0 for the decoder LSTM_Cell
-		hidden = torch.zeros(batch_size, self.decoder.hidden_size).to(self.device)
-		cell = torch.zeros(batch_size, self.decoder.hidden_size).to(self.device)
+		hidden = torch.zeros(batch_size, self.decoder_hidden_size).to(self.device)
+		cell = torch.zeros(batch_size, self.decoder_hidden_size).to(self.device)
 
 		# visualize the result
 		result = []
@@ -106,6 +106,7 @@ class Emb2Seq_Model(nn.Module):
 			# get embedding at each time step from the LSTM
 			# (batch, vocab_size), (batch, decoder.hidden_size)
 			output, hidden, cell = self.decoder(sense_embedding, hidden, cell)
+			# print('deocder out size in model: {}'.format(output.shape))
 			# print(output.shape)
 			outputs[t] = output
 
@@ -133,4 +134,5 @@ class Emb2Seq_Model(nn.Module):
 			# print(generated_embedding.shape)			
 			sense_embedding = torch.cat((encoder_embedding, generated_embedding), 1).to(self.device)
 
+		# print('model output size: {}'.format(outputs.shape))
 		return outputs, result

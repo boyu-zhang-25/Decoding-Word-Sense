@@ -340,12 +340,7 @@ class ChildSumGraphLSTM_WordNet(ChildSumGraphLSTM):
 		# print(x_t.shape)
 		return x_t
 
-# weights initialization
-def init_weights(m):
-	for name, param in m.named_parameters():
-		print(name, param.shape)
-		torch.nn.init.uniform_(param.data, -0.08, 0.08)
-
+'''
 # test run
 def main():
 
@@ -354,7 +349,6 @@ def main():
 	print("Size of synset vocab: {}".format(synset_vocab.idx))
 
 	graph = ChildSumGraphLSTM_WordNet(synset_vocab = synset_vocab, input_size = 256, hidden_size = 128, num_layers = 2, bidirectional = True, bias = True)
-	graph.apply(init_weights)
 	synset = wn.synset('dog.n.01').name()
 
 	start_time = time.time()
@@ -362,15 +356,11 @@ def main():
 	# iterate through all synsets in the WN
 	hidden_all, (hidden_final, cell_final) = graph(synset, depth = 10)
 	print(hidden_final.shape, cell_final.shape)
-	'''
-	for synset in wn.all_synsets():
-		synset = synset.name()
-		print(synset)
-		graph('input', synset, depth = 3)
-	'''
+
 	end_time = time.time()
 	print('time: {}'.format((end_time - start_time)))
 
 
 if __name__ == '__main__':
 	main()
+'''

@@ -76,15 +76,14 @@ class Graph2Seq_Model(nn.Module):
 		# each word is an example for the decoder
 		batch_size = len(tagged_sent)
 
-		# sense embedding from the graph_lstm runing on each tagged word
-		graph_lstm_embedding = torch.zeros(batch_size, self.graph_lstm.hidden_size * self.graph_lstm.num_layers).to(device)
-
 		# set the graph_lstm output same size as the embedding for now
 		# check size compatible with the decoder input
-		assert(self.graph_lstm.hidden_size * self.graph_lstm.num_layers == self.word_embed_size)
-		assert(self.graph_lstm.hidden_size * self.graph_lstm.num_layers + self.word_embed_size == self.decoder.input_size)
+		# assert(self.graph_lstm.hidden_size * self.graph_lstm.num_layers == self.word_embed_size)
+		# assert(self.graph_lstm.hidden_size * self.graph_lstm.num_layers + self.word_embed_size == self.decoder.input_size)
 
-		for idx, synset in enuemrate(senses):
+		# sense embedding from the graph_lstm runing on each tagged word
+		graph_lstm_embedding = torch.zeros(batch_size, self.graph_lstm.hidden_size * self.graph_lstm.num_layers).to(device)
+		for idx, synset in enumerate(senses):
 			hidden_all, (graph_lstm_embedding[idx], cell_final) = self.graph_lstm(synset, depth = self.depth)
 		
 		# tensor to store decoder outputs

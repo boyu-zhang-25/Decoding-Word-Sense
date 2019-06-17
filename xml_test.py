@@ -1,47 +1,34 @@
 import xml.etree.ElementTree as ET
 tree = ET.parse('../WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.data.xml')
-from nltk.corpus import wordnet as wn 
+from nltk.corpus import wordnet as wn
+import time
 
 corpus = tree.getroot()
 # print(corpus)
 
-text_num = 0
-sentence_num = 0
-instance_num = 0
-text_list = []
+for text in corpus[1:2]:
 
-for text in corpus:
-	text_num += 1
-	c_s_num = 0
-
-	for sentence in text:
-		# print(sentence.keys())
-		sentence_num += 1
-		c_s_num += 1
-
-		s = [word.text for word in sentence]
-		# print(s)
+	for sentence in text[0:5]:
 
 		tagged_sent = [instance for instance in sentence if instance.tag == 'instance']
-		# print(tagged_sent)
-		# print('\n')
+		# print([instance.text for instance in tagged_sent])
 
-		instance_num += len(tagged_sent)
-		for i in tagged_sent:
-			if '.' in i.text:
-				l = [word.text for word in sentence]
-				# print(l)
-				# print(i.text)
+		if len(tagged_sent) > 0:
 
-	text_list.append(c_s_num)
+			# get all-word definitions, batch_size is the sentence length
+			# [batch_size, self.max_length]
+			print([instance.text for instance in sentence])
+			for instance in tagged_sent:
 
-print(text_num)
-print(sentence_num)
-print(instance_num)
-print(sum(text_list[0:50]))
-print(sum(text_list[50:60]))
+				# get the sense from the target file with ID
+				key = ''
+				target_file = open("../WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.gold.key.txt", "r")
+				for line in target_file:
+					if line.startswith(instance.get('id')):
+						key = line.replace('\n', '').split(' ')[-1]
+				definition = wn.lemma_from_key(key).synset().definition()
+				print(instance.text, definition)
 
-f = open("../WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.gold.key.txt", "r")
-s1 = f.readline().replace('\n', '').split(' ')[-1]
-print(wn.lemma_from_key(s1).synset().name())
-print(f.readline())
+
+
+

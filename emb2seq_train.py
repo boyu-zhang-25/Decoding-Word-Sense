@@ -51,10 +51,14 @@ with open('./data/vocab.pkl', 'rb') as f:
 
 # In[4]:
 
+# some hyperparameters
+max_seq_length = 20
+decoder_hidden_size = 256
 
-decoder = Decoder(vocab_size = vocab.idx)
+# please check the emb2seq_parallel_train.py for CUDA parallel version 
+decoder = Decoder(vocab_size = vocab.idx, max_seq_length = max_seq_length, hidden_size = decoder_hidden_size)
 encoder = Encoder(elmo_class = elmo)
-emb2seq_model = Emb2Seq_Model(encoder, decoder, vocab = vocab)
+emb2seq_model = Emb2Seq_Model(encoder, decoder, vocab = vocab, max_seq_length = max_seq_length, decoder_hidden_size = decoder_hidden_size)
 
 # randomly initialize the weights
 def init_weights(m):
@@ -69,15 +73,9 @@ emb2seq_model.apply(init_weights)
 # In[5]:
 
 
-#cuda
+# cuda
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print('Device: {}'.format(device))
-
-# data parallel
-if torch.cuda.device_count() > 1:
-	print("Let's use", torch.cuda.device_count(), "GPUs!")
-	# emb2seq_model = nn.DataParallel(emb2seq_model)
-emb2seq_model.to(device)
 
 # training hyperparameters
 optimizer = optim.Adam(emb2seq_model.parameters())
@@ -148,8 +146,8 @@ tree = ET.parse('../WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.data
 corpus = tree.getroot()
 
 # small sets of SemCor
-small_train_size = 50
-small_dev_size = 60
+small_train_size = 1
+small_dev_size = 2
 
 
 # In[9]:
@@ -164,7 +162,7 @@ def train(model, optimizer, corpus, criterion, clip):
     
     for sub_corpus in corpus[0:small_train_size]:
     
-        for sent in sub_corpus:
+        for sent in sub_corpus[0:20]:
 
             optimizer.zero_grad()
             
@@ -235,7 +233,7 @@ def evaluate(model, corpus, criterion):
     
         for sub_corpus in corpus[small_train_size:small_dev_size]:
     
-            for sent in sub_corpus:
+            for sent in sub_corpus[0:5]:
                 
                 sentence = [word.text for word in sent]
                 
@@ -336,7 +334,7 @@ def write_result_to_file(arranged_all_sentence_result, all_definition):
 # train and evaluate
 import time
 
-N_EPOCHS = 40
+N_EPOCHS = 5
 CLIP = 1
 best_valid_loss = float('inf')
 train_losses = []

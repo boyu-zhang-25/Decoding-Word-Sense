@@ -152,8 +152,8 @@ tree = ET.parse('../WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.data
 corpus = tree.getroot()
 
 # small sets of SemCor
-small_train_size = 
-small_dev_size = 
+small_train_size = 150
+small_dev_size = 170
 
 
 # In[9]:

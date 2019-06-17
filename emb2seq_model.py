@@ -22,7 +22,7 @@ class Emb2Seq_Model(nn.Module):
 				max_seq_length,
 				decoder_hidden_size,
 				word_embed_size = 256,
-				dropout = 0, 
+				dropout = 0.375, 
 				regularization = None,
 				device = device):
 		super(Emb2Seq_Model, self).__init__()

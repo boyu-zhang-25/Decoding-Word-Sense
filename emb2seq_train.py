@@ -72,11 +72,15 @@ emb2seq_model.apply(init_weights)
 #cuda
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print('Device: {}'.format(device))
-print(torch.cuda.device_count())
+
+# data parallel
+if torch.cuda.device_count() > 1:
+	print("Let's use", torch.cuda.device_count(), "GPUs!")
+	emb2seq_model = nn.DataParallel(emb2seq_model)
 emb2seq_model.to(device)
 
 # training hyperparameters
-optimizer = optim.Adam(emb2seq_model.parameters(), lr = 0.1)
+optimizer = optim.Adam(emb2seq_model.parameters())
 PAD_IDX = vocab('<pad>')
 print('PAD_IDX: {}'.format(PAD_IDX))
 criterion = nn.CrossEntropyLoss(ignore_index = PAD_IDX).to(device)

@@ -53,12 +53,10 @@ class ChildSumGraphLSTM(RNNBase):
 	use all its hypers and hypons to generate the new node embedding
 	recursively over the whole graph
 	'''
-	def forward(self, inputs, synset, depth):
+	def forward(self, synset, depth):
 		"""
 		Parameters
 		----------
-		inputs : torch.Tensor
-			I do not need it anymore lmao
 
 		synset: the name of a 'nltk.corpus.reader.wordnet.Synset'
 			the current synset (node)
@@ -73,13 +71,11 @@ class ChildSumGraphLSTM(RNNBase):
 
 		Returns
 		-------
-		hidden_all: torch.Tensor
+		hidden_all: list of torch.Tensor
 			the updated hidden states of all connected nodes along the resursion process
 		hidden_final, cell_final: torch.Tensor
 			the final hidden state and cell state of the target synset node.
 		"""
-
-		# self._validate_inputs(inputs)
 
 		# used to store all updated embeddings
 		# of all the synsets that is connected and updated in this trun
@@ -96,8 +92,7 @@ class ChildSumGraphLSTM(RNNBase):
 
 			# get the new node embedding by all its hypers and hypons
 			# start with hyper
-			self._upward_downward(layer, 'up', inputs, synset, depth)
-			# self._upward_downward(layer, 'down', inputs, synset)
+			self._upward_downward(layer, 'up', synset, depth)
 
 		# convert '__' to '.' due to hashing
 		synset = synset.replace('.', '__')
@@ -137,7 +132,7 @@ class ChildSumGraphLSTM(RNNBase):
 	find all its hyper/hypon embeddings recursively (in _construct_previous)
 	calculate the new embedding by the LSTM gates
 	'''
-	def _upward_downward(self, layer, direction, inputs, synset, depth):
+	def _upward_downward(self, layer, direction, synset, depth):
 
 		# convert '__' to '.' due to hashing
 		synset = synset.replace('.', '__')
@@ -154,14 +149,14 @@ class ChildSumGraphLSTM(RNNBase):
 			return h_t, c_t
 
 		# get the current node x_t from the embedding
-		x_t = self._construct_x_t(layer, inputs, synset)
+		x_t = self._construct_x_t(layer, synset)
 
 		# construct the hyper and hypon embedding recursively
 		# keep track of the depth of the recursion
 		# h_prev, c_prev: (hidden_size, num_hyper/num_hypon)
 		# convert '__' to '.' due to hashing
 		synset = synset.replace('__', '.')
-		oidx, (h_prev, c_prev) = self._construct_previous(layer, direction, inputs, synset, depth - 1)
+		oidx, (h_prev, c_prev) = self._construct_previous(layer, direction, synset, depth - 1)
 
 		# broadcasting and cast the tensor size 
 		# to calculate all the LSTM gates
@@ -217,32 +212,12 @@ class ChildSumGraphLSTM(RNNBase):
 		# if already calculated, it will be short-circuit at the beginning of this method
 		if self.bidirectional:
 			if direction == 'up':
-				self._upward_downward(layer, 'down', inputs, synset, depth)
+				self._upward_downward(layer, 'down', synset, depth)
 			else:
-				self._upward_downward(layer, 'up', inputs, synset, depth)
+				self._upward_downward(layer, 'up', synset, depth)
 
 		# (hidden_size)
 		return h_t, c_t
-
-	# validate the input shape
-	# only support SGD with batch size of 1
-	def _validate_inputs(self, inputs):
-		if len(inputs.size()) == 3:
-			self._has_batch_dimension = True
-			try:
-				assert inputs.size()[1] == 1
-			except AssertionError:
-				msg = 'ChildSumTreeLSTM assumes that dimension 1 of'
-				msg += 'inputs is a batch dimension and, because it'
-				msg += 'does not support minibatching, this dimension'
-				msg += 'must always have size == 1'
-				raise ValueError(msg)
-		elif len(inputs.size()) == 2:
-			self._has_batch_dimension = False
-		else:
-			msg = 'inputs must be 2D or 3D (with dimension 1 being'
-			msg += 'a batch dimension)'
-			raise ValueError(msg)
 
 	# get the params of the LSTM
 	# default params by the Pytorch source code of the RNNBase
@@ -266,7 +241,7 @@ class ChildSumGraphLSTM(RNNBase):
 			return Wih, Whh
 
 	@abstractmethod
-	def _construct_x_t(self, layer, inputs, synset):
+	def _construct_x_t(self, layer, synset):
 		raise NotImplementedError
 
 	'''
@@ -274,7 +249,7 @@ class ChildSumGraphLSTM(RNNBase):
 	recursively find all its hyper or hypon embeddings
 	limited to the max recursion depth
 	'''
-	def _construct_previous(self, layer, direction, inputs, synset, depth):
+	def _construct_previous(self, layer, direction, synset, depth):
 
 		# if hit the max recursion depth
 		# return as if it has no more hyper/hypon
@@ -305,7 +280,7 @@ class ChildSumGraphLSTM(RNNBase):
 				# print('{}{}:'.format('    ' * (old_depth - depth), i))
 				# get the h and c for each hyper/hypon
 				# (hidden_size)
-				h_prev_i, c_prev_i = self._upward_downward(layer, direction, inputs, i, depth)
+				h_prev_i, c_prev_i = self._upward_downward(layer, direction, i, depth)
 				h_prev.append(h_prev_i)
 				c_prev.append(c_prev_i)
 
@@ -330,7 +305,7 @@ class ChildSumGraphLSTM_WordNet(ChildSumGraphLSTM):
 		Only runs on the WordNet
 	"""
 
-	def _construct_x_t(self, layer, inputs, synset):
+	def _construct_x_t(self, layer, synset):
 
 		# find the x_t
 		# when at stacked layer, the input is the previous hidden states (maybe concat when bidirectional)
@@ -342,7 +317,7 @@ class ChildSumGraphLSTM_WordNet(ChildSumGraphLSTM):
 			# this is designed for the stacked version
 			# when the recursion order left some of the hypers uncalculated
 			if synset not in self.hidden_state[layer - 1]['up']:
-				self.hidden_state[layer - 1]['up'][synset] = self._upward_downward((layer - 1), 'up', inputs, synset)[0]
+				self.hidden_state[layer - 1]['up'][synset] = self._upward_downward((layer - 1), 'up', synset)[0]
 			'''
 
 			x_t = torch.cat([self.hidden_state[layer - 1]['up'][synset], self.hidden_state[layer - 1]['down'][synset]])
@@ -378,14 +353,15 @@ def main():
 		synset_vocab = pickle.load(f)
 	print("Size of synset vocab: {}".format(synset_vocab.idx))
 
-	graph = ChildSumGraphLSTM_WordNet(synset_vocab = synset_vocab, input_size = 256, hidden_size = 512, num_layers = 2, bidirectional = True, bias = True)
+	graph = ChildSumGraphLSTM_WordNet(synset_vocab = synset_vocab, input_size = 256, hidden_size = 128, num_layers = 2, bidirectional = True, bias = True)
 	graph.apply(init_weights)
 	synset = wn.synset('dog.n.01').name()
 
 	start_time = time.time()
 
 	# iterate through all synsets in the WN
-	graph('input', synset, depth = 10)
+	hidden_all, (hidden_final, cell_final) = graph(synset, depth = 10)
+	print(hidden_final.shape, cell_final.shape)
 	'''
 	for synset in wn.all_synsets():
 		synset = synset.name()

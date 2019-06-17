@@ -12,7 +12,7 @@ class Decoder(nn.Module):
 				vocab_size,
 				max_seq_length, # max length of definition generated is 18 with <start> and <end>
 				hidden_size, # length of the generated word embedding 
-				embed_size = 512, # concat the sense embedding and the generated word embedding (2 * 256)
+				input_size = 512, # concat the sense embedding and the generated word embedding (2 * 256)
 				device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
 
 		"""Build the layers in the decoder."""
@@ -21,10 +21,10 @@ class Decoder(nn.Module):
 		self.hidden_size = hidden_size
 		self.device = device
 		self.vocab_size = vocab_size
-		self.embed_size = embed_size
+		self.input_size = input_size
 		
 		# the decoding LSTM
-		self.lstm_cell = nn.LSTMCell(self.embed_size, self.hidden_size)
+		self.lstm_cell = nn.LSTMCell(self.input_size, self.hidden_size)
 		
 		# project the output from LSTM to vocabulary space
 		self.linear = nn.Linear(self.hidden_size, self.vocab_size)
@@ -38,7 +38,7 @@ class Decoder(nn.Module):
 	def forward(self, sense_embedding, hidden, cell):
 		'''
 		the predicted word in the embedding:
-		sense_embedding (batch_size, embed_size): concat of the encoder embedding and the generated word embedding
+		sense_embedding (batch_size, input_size): concat of the encoder embedding and the generated word embedding
 		hidden, cell of shape (batch, hidden_size)
 		'''
 

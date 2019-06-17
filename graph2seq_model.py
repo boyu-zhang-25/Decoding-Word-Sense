@@ -5,18 +5,18 @@ import math
 from collections import Iterable, defaultdict
 import itertools
 import random
-from encoder import *
+from graph_lstm import *
 from decoder import *
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 '''
-baseline model: encoder-decoder
-feed the encoder result directly to the decoder
+graph_lstm-decoder
 '''
-class Emb2Seq_Model(nn.Module):
+class Graph2Seq_Model(nn.Module):
 
 	def __init__(self,
-				encoder,
+				graph_lstm,
+				depth,
 				decoder,
 				vocab,
 				max_seq_length,
@@ -25,11 +25,11 @@ class Emb2Seq_Model(nn.Module):
 				dropout = 0.375, 
 				regularization = None,
 				device = device):
-		super(Emb2Seq_Model, self).__init__()
+		super(Graph2Seq_Model, self).__init__()
 		self.device = device
 
 		# the word embedding size for the nn.Embedding
-		# NOTICE: 1/2 of the decoder.embed_size because we will concat later
+		# NOTICE: 1/2 of the decoder.input_size because we will concat later
 		self.word_embed_size = word_embed_size
 
 		'''
@@ -45,7 +45,8 @@ class Emb2Seq_Model(nn.Module):
 			self.regularization = self.regularization.to(self.device)
 		'''
 
-		self.encoder = encoder
+		self.graph_lstm = graph_lstm
+		self.depth = depth
 		self.decoder = decoder
 		self.max_length = max_seq_length
 		self.vocab_size = vocab.idx
@@ -59,7 +60,7 @@ class Emb2Seq_Model(nn.Module):
 		self.dropout = nn.Dropout(dropout)
 
 	# perform all-word WSD on the SemCor dataset
-	def forward(self, sentence, tagged_sent, definition, teacher_forcing_ratio = 0.4):
+	def forward(self, senses, tagged_sent, definition, teacher_forcing_ratio = 0.4):
 		
 		'''
 		teacher_forcing: the probability of using ground truth in decoding
@@ -67,18 +68,24 @@ class Emb2Seq_Model(nn.Module):
 		definition: [seq_length, self.max_length]
 		the matrix with row as seq and column as words: indices of each word in the true definition
 
-		sentence: the given plain sentence in a list
+		senses: all senses of tagged words in a list
 		tagged_sent: the target sentence (list) with only tagged words from the SemCor
 		'''
 		
-		# sense embedding from the encoder
-		# (seq_length, 256): batch is the seq_length for all-word WSD
-		encoder_embedding = self.encoder(sentence, tagged_sent)
-		# print(encoder_embedding.shape)
-
 		# treating one sentence as a batch for all-word WSD
 		# each word is an example for the decoder
 		batch_size = len(tagged_sent)
+
+		# sense embedding from the graph_lstm runing on each tagged word
+		graph_lstm_embedding = torch.zeros(batch_size, self.graph_lstm.hidden_size * self.graph_lstm.num_layers).to(device)
+
+		# set the graph_lstm output same size as the embedding for now
+		# check size compatible with the decoder input
+		assert(self.graph_lstm.hidden_size * self.graph_lstm.num_layers == self.word_embed_size)
+		assert(self.graph_lstm.hidden_size * self.graph_lstm.num_layers + self.word_embed_size == self.decoder.input_size)
+
+		for idx, synset in enuemrate(senses):
+			hidden_all, (graph_lstm_embedding[idx], cell_final) = self.graph_lstm(synset, depth = self.depth)
 		
 		# tensor to store decoder outputs
 		outputs = torch.zeros(self.max_length, batch_size, self.vocab_size).to(self.device)
@@ -89,9 +96,9 @@ class Emb2Seq_Model(nn.Module):
 		generated_embedding = self.dropout(self.embed(lookup_tensor)).repeat(batch_size, 1).to(self.device)
 		# print(generated_embedding.shape)
 
-		# concat of the encoder embedding and the generated word embedding
+		# concat of the graph_lstm embedding and the generated word embedding
 		# (batch_size, decoder.input_size)
-		sense_embedding = torch.cat((encoder_embedding, generated_embedding), 1).to(self.device)
+		sense_embedding = torch.cat((graph_lstm_embedding, generated_embedding), 1).to(self.device)
 
 		# initialize h_0 and c_0 for the decoder LSTM_Cell
 		hidden = torch.zeros(batch_size, self.decoder_hidden_size).to(self.device)
@@ -128,11 +135,11 @@ class Emb2Seq_Model(nn.Module):
 					word_index.append(generated_index[batch])
 
 			# get the new embedding
-			# concat the encoder embedding to the generated embedding at each time step
+			# concat the graph_lstm embedding to the generated embedding at each time step
 			lookup_tensor = torch.tensor(word_index, dtype = torch.long).to(self.device)
 			generated_embedding = self.dropout(self.embed(lookup_tensor)).to(self.device)
 			# print(generated_embedding.shape)			
-			sense_embedding = torch.cat((encoder_embedding, generated_embedding), 1).to(self.device)
+			sense_embedding = torch.cat((graph_lstm_embedding, generated_embedding), 1).to(self.device)
 
 		# print('model output size: {}'.format(outputs.shape))
 		return outputs, result

@@ -84,8 +84,9 @@ class Graph2Seq_Model(nn.Module):
 		# sense embedding from the graph_lstm runing on each tagged word
 		graph_lstm_embedding = torch.zeros(batch_size, self.graph_lstm.hidden_size * self.graph_lstm.num_layers).to(device)
 		for idx, synset in enumerate(senses):
-			hidden_all, (graph_lstm_embedding[idx], cell_final) = self.graph_lstm(synset, depth = self.depth)
-		
+			hidden_all, (hidden_final, cell_final) = self.graph_lstm(synset, depth = self.depth)
+			graph_lstm_embedding[idx] = hidden_final
+
 		# tensor to store decoder outputs
 		outputs = torch.zeros(self.max_length, batch_size, self.vocab_size).to(self.device)
 
@@ -100,8 +101,12 @@ class Graph2Seq_Model(nn.Module):
 		sense_embedding = torch.cat((graph_lstm_embedding, generated_embedding), 1).to(self.device)
 
 		# initialize h_0 and c_0 for the decoder LSTM_Cell
+		'''
 		hidden = torch.zeros(batch_size, self.decoder_hidden_size).to(self.device)
 		cell = torch.zeros(batch_size, self.decoder_hidden_size).to(self.device)
+		'''
+		hidden = hidden_final.repeat(batch_size, 1)
+		cell = cell_final.repeat(batch_size, 1)
 
 		# visualize the result
 		result = []

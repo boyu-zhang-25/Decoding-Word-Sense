@@ -255,12 +255,8 @@ class ChildSumGraphLSTM(RNNBase):
 		# return as if it has no more hyper/hypon
 		if depth == 0:
 			oidx = []
-			if torch.cuda.is_available():
-				h_prev = torch.zeros(self.hidden_size, 1).to(device)
-				c_prev = torch.zeros(self.hidden_size, 1).to(device)
-			else:
-				h_prev = torch.zeros(self.hidden_size, 1)
-				c_prev = torch.zeros(self.hidden_size, 1)
+			h_prev = torch.zeros(self.hidden_size, 1).to(device)
+			c_prev = torch.zeros(self.hidden_size, 1).to(device)
 
 			# print('{}cut-off: {}; depth: {}; direction: {}\n'.format('    ' * (old_depth - depth), synset, depth, direction))
 			return oidx, (h_prev, c_prev)
@@ -289,12 +285,9 @@ class ChildSumGraphLSTM(RNNBase):
 			c_prev = torch.stack(c_prev, 1)
 
 		# if it is a left node (no hyper/hypon), return 0 tensor
-		elif torch.cuda.is_available():
+		else:
 			h_prev = torch.zeros(self.hidden_size, 1).to(device)
 			c_prev = torch.zeros(self.hidden_size, 1).to(device)
-		else:
-			h_prev = torch.zeros(self.hidden_size, 1)
-			c_prev = torch.zeros(self.hidden_size, 1)
 
 		# (hidden_size, num_hyper/num_hypon)
 		return oidx, (h_prev, c_prev)
@@ -328,7 +321,7 @@ class ChildSumGraphLSTM_WordNet(ChildSumGraphLSTM):
 
 			# get the synset (sense) embedding
 			synset_idx = self.synset_vocab(synset)
-			lookup_tensor = torch.tensor([synset_idx], dtype = torch.long)
+			lookup_tensor = torch.tensor([synset_idx], dtype = torch.long).to(device)
 			
 			# may add dropout
 			if self.dropout:
@@ -340,7 +333,6 @@ class ChildSumGraphLSTM_WordNet(ChildSumGraphLSTM):
 		# print(x_t.shape)
 		return x_t
 
-'''
 # test run
 def main():
 
@@ -363,4 +355,3 @@ def main():
 
 if __name__ == '__main__':
 	main()
-'''

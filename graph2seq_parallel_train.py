@@ -64,7 +64,7 @@ decoder_input_size = 512
 depth = 3
 
 # please check the emb2seq_parallel_train.py for CUDA parallel version
-graph_lstm = ChildSumGraphLSTM_WordNet(synset_vocab = synset_vocab, input_size = 256, hidden_size = 128, num_layers = 2, bidirectional = True, bias = True, dropout = 0.4)
+graph_lstm = ChildSumGraphLSTM_WordNet(synset_vocab = synset_vocab, input_size = 256, hidden_size = 128, num_layers = 2, bidirectional = True, bias = True, dropout = 0.35)
 decoder = Decoder(vocab_size = vocab.idx, max_seq_length = max_seq_length, hidden_size = decoder_hidden_size, input_size = decoder_input_size)
 
 
@@ -89,12 +89,12 @@ def init_weights(m):
     for name, param in m.named_parameters():
         if param.requires_grad:
             print(name, param.shape)
-        # nn.init.uniform_(param.data, -0.08, 0.08)
+        nn.init.uniform_(param.data, -0.08, 0.08)
         
 graph2seq_model.apply(init_weights)
 
 # training hyperparameters
-optimizer = optim.Adam(graph2seq_model.parameters())
+optimizer = optim.Adam(graph2seq_model.parameters(), lr = 0.005)
 PAD_IDX = vocab('<pad>')
 print('PAD_IDX: {}'.format(PAD_IDX))
 criterion = nn.CrossEntropyLoss(ignore_index = PAD_IDX).to(device)
@@ -197,9 +197,9 @@ def train(model, optimizer, corpus, criterion, clip):
     epoch_loss = 0
     sentence_num = 0
     
-    for sub_corpus in corpus[0:small_train_size]:
+    for sub_corpus in corpus:
     
-        for sent in sub_corpus[0:20]:
+        for sent in sub_corpus:
 
             optimizer.zero_grad()
             
@@ -270,9 +270,9 @@ def evaluate(model, corpus, criterion):
     
     with torch.no_grad():
     
-        for sub_corpus in corpus[0:small_dev_size]:
+        for sub_corpus in corpus:
     
-            for sent in sub_corpus[0:5]:
+            for sent in sub_corpus:
                 
                 # sentence = [word.text for word in sent]
                 
@@ -375,7 +375,7 @@ def write_result_to_file(arranged_all_sentence_result, all_definition):
 # train and evaluate
 import time
 
-N_EPOCHS = 5
+N_EPOCHS = 40
 CLIP = 1
 best_valid_loss = float('inf')
 train_losses = []
@@ -401,7 +401,7 @@ for epoch in range(N_EPOCHS):
     if valid_loss <= best_valid_loss:
 
         best_valid_loss = valid_loss
-        torch.save(emb2seq_model.state_dict(), 'graph2seq_best_model.pth')
+        torch.save(graph2seq_model.state_dict(), 'graph2seq_best_model.pth')
         
         # record the result
         write_result_to_file(arranged_all_sentence_result, all_definitions)

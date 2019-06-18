@@ -340,7 +340,7 @@ def main():
 		synset_vocab = pickle.load(f)
 	print("Size of synset vocab: {}".format(synset_vocab.idx))
 
-	graph = ChildSumGraphLSTM_WordNet(synset_vocab = synset_vocab, input_size = 256, hidden_size = 128, num_layers = 2, bidirectional = True, bias = True)
+	graph = ChildSumGraphLSTM_WordNet(synset_vocab = synset_vocab, input_size = 300, hidden_size = 128, num_layers = 2, bidirectional = True, bias = True)
 	synset = wn.synset('dog.n.01').name()
 
 	start_time = time.time()

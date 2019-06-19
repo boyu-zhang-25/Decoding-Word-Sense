@@ -22,7 +22,7 @@ class Graph2Seq_Model(nn.Module):
 				max_seq_length,
 				decoder_hidden_size,
 				word_embed_size = 256,
-				dropout = 0.375, 
+				dropout = 0.3, 
 				regularization = None,
 				device = device):
 		super(Graph2Seq_Model, self).__init__()
@@ -121,6 +121,7 @@ class Graph2Seq_Model(nn.Module):
 
 			# get the max word index from the vocabulary
 			_, generated_index = torch.max(output, dim = 1)
+			# print(generated_index)
 			result.append(generated_index)
 
 			# final word choice

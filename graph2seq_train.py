@@ -79,10 +79,10 @@ if torch.cuda.device_count() > 1:
 max_seq_length = 20
 decoder_hidden_size = 256
 decoder_input_size = 512
-depth = 6
+depth = 4
 
 # please check the emb2seq_parallel_train.py for CUDA parallel version
-graph_lstm = ChildSumGraphLSTM_WordNet(synset_vocab = synset_vocab, input_size = 256, hidden_size = 128, num_layers = 2, bidirectional = True, bias = True, dropout = 0.4)
+graph_lstm = ChildSumGraphLSTM_WordNet(synset_vocab = synset_vocab, input_size = 256, hidden_size = 128, num_layers = 2, bidirectional = True, bias = True, dropout = 0.3)
 decoder = Decoder(vocab_size = vocab.idx, max_seq_length = max_seq_length, hidden_size = decoder_hidden_size, input_size = decoder_input_size)
 graph2seq_model = Graph2Seq_Model(graph_lstm, depth, decoder, vocab = vocab, max_seq_length = max_seq_length, decoder_hidden_size = decoder_hidden_size)
 graph2seq_model.to(device)
@@ -101,7 +101,7 @@ graph2seq_model.apply(init_weights)
 
 
 # training hyperparameters
-optimizer = optim.Adam(graph2seq_model.parameters())
+optimizer = optim.Adam(graph2seq_model.parameters(), lr = 0.005)
 PAD_IDX = vocab('<pad>')
 print('PAD_IDX: {}'.format(PAD_IDX))
 criterion = nn.CrossEntropyLoss(ignore_index = PAD_IDX).to(device)
@@ -148,19 +148,19 @@ def def2idx(definition, max_length, vocab):
 
 # the training function
 # pretrain on the synsets appeared in the SemCor
-small_size = 30
+small_size = 10
 def train(model, optimizer, synset_vocab_SemCor, criterion, clip):
     
     model.train()
     epoch_loss = 0
-    synset_num = small_size
+    synset_num = synset_vocab_SemCor.idx
     
     # visualize results
     all_definitions = []
     all_sentence_result = []
     
-    # for idx in synset_vocab_SemCor.idx
-    for idx in range(small_size):
+    for idx in range(synset_vocab_SemCor.idx):
+    # for idx in range(small_size):
 
         optimizer.zero_grad()
         
@@ -246,7 +246,7 @@ def write_result_to_file(arranged_all_sentence_result, all_definition):
 # train 
 import time
 
-N_EPOCHS = 10
+N_EPOCHS = 20
 CLIP = 1
 best_train_loss = float('inf')
 train_losses = []
@@ -290,10 +290,6 @@ with open('train_loss.tsv', mode = 'w') as loss_file:
     csv_writer = csv.writer(loss_file)
     csv_writer.writerow(train_losses)
 
-with open('dev_loss.tsv', mode = 'w') as loss_file: 
-    csv_writer = csv.writer(loss_file)
-    csv_writer.writerow(dev_losses)
-
 
 # In[ ]:
 
@@ -311,20 +307,4 @@ plt.xlabel('Number of Iteration')
 plt.tight_layout()
 plt.savefig('train_loss.png')
 
-
-# In[ ]:
-
-
-plt.figure(2)
-# rc('text', usetex = True)
-rc('font', family='serif')
-plt.grid(True, ls = '-.',alpha = 0.4)
-plt.plot(dev_losses, ms = 4, marker = 'o', label = "Dev Loss")
-plt.legend(loc = "best")
-title = "CrossEntropy Loss"
-plt.title(title)
-plt.ylabel('Loss')
-plt.xlabel('Number of Iteration')
-plt.tight_layout()
-plt.savefig('dev_loss.png')
 

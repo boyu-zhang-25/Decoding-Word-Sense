@@ -1,80 +1,40 @@
 sentence 0
-(usually followed by `to') having the necessary means or skill or know-how or authority to do something
- <start> ( or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
+primarily temporal sense; being or indicating a relatively great or greater than average duration or passage of time or a duration as specified
+ <start> of of or or or or or or or or or or or or or or or or or
 
 sentence 1
-(usually followed by `to') not having the necessary means or skill or know-how
- <start> ( or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
+have the quality of being; (copula, used with an adjective or a predicate noun)
+ <start> <start> <start> <start> <start> of of of of of of or or or or or or or or or
 
 sentence 2
-facing away from the axis of an organ or organism
- <start> ( or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
+look at again; examine again
+ <start> of or or or or or or or or or or or or or or or or or or
 
 sentence 3
-nearest to or facing toward the axis of an organ or organism
- <start> ( or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
+the goal intended to be attained (and which is believed to be attainable)
+ <start> <start> a a or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
 
 sentence 4
-facing or on the side toward the apex
- <start> ( or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
+financial assistance in time of need
+ <start> <start> a a <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
 
 sentence 5
-facing or on the side toward the base
- <start> ( or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
+employment in or work for another
+ <start> <start> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
 
 sentence 6
-especially of muscles; drawing away from the midline of the body or from an adjacent part
- <start> ( or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
+a system of projects or services intended to meet a public need
+ <start> <start> <start> <start> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
 
 sentence 7
-especially of muscles; bringing together or drawing toward the midline of the body or toward an adjacent part
- <start> ( or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
+make it possible through a specific action or lack of action for something to happen
+ <start> <start> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
 
 sentence 8
-being born or beginning
- <start> ( or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
+undergo a change or development
+ <start> <start> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
 
 sentence 9
-coming into existence
- <start> ( or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
-
-sentence 10
-bursting open with force, as do some ripe seed vessels
- <start> ( or or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
-
-sentence 11
-giving birth
- <start> ( or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
-
-sentence 12
-in or associated with the process of passing from life or ceasing to be
- <start> ( or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
-
-sentence 13
-being on the point of death; breathing your last
- <start> ( or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
-
-sentence 14
-occurring at the time of death
- <start> ( or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
-
-sentence 15
-(used of texts) shortened by condensing or rewriting
- <start> ( or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
-
-sentence 16
-with parts removed
- <start> ( or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
-
-sentence 17
-abridged to half its original length
- <start> ( or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
-
-sentence 18
-(British informal) summarized or abridged
- <start> ( or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
-
-sentence 19
-(used of texts) not shortened
- <start> ( or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
+a gift of public land or resources for the private gain of a limited group
+ <start> <start> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
 

@@ -1,36 +1,80 @@
 sentence 0
-make reference to
-systematic investigation to establish facts
-announce as the result of an investigation or experience or finding
- <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start>
- <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start>
- <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start>
+(usually followed by `to') having the necessary means or skill or know-how or authority to do something
+ <start> ( or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
 
 sentence 1
-a statement that expresses a personal opinion or belief or adds information
-express or state indirectly
-get to know or become aware of, usually accidentally
-events that provide the generative force that is the origin of something
-discover or determine the existence, presence, or fact of
- <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start>
- <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start>
- <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start>
- <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start>
- <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start>
+(usually followed by `to') not having the necessary means or skill or know-how
+ <start> ( or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
 
 sentence 2
-perform or carry out
-the act of affirming or asserting or stating something
- <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start>
- <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start>
+facing away from the axis of an organ or organism
+ <start> ( or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
 
 sentence 3
-enter or assume a certain state or condition
- <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start>
+nearest to or facing toward the axis of an organ or organism
+ <start> ( or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
 
 sentence 4
-events that provide the generative force that is the origin of something
-know and comprehend the nature or meaning of
- <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start>
- <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start> <start>
+facing or on the side toward the apex
+ <start> ( or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
+
+sentence 5
+facing or on the side toward the base
+ <start> ( or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
+
+sentence 6
+especially of muscles; drawing away from the midline of the body or from an adjacent part
+ <start> ( or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
+
+sentence 7
+especially of muscles; bringing together or drawing toward the midline of the body or toward an adjacent part
+ <start> ( or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
+
+sentence 8
+being born or beginning
+ <start> ( or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
+
+sentence 9
+coming into existence
+ <start> ( or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
+
+sentence 10
+bursting open with force, as do some ripe seed vessels
+ <start> ( or or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
+
+sentence 11
+giving birth
+ <start> ( or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
+
+sentence 12
+in or associated with the process of passing from life or ceasing to be
+ <start> ( or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
+
+sentence 13
+being on the point of death; breathing your last
+ <start> ( or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
+
+sentence 14
+occurring at the time of death
+ <start> ( or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
+
+sentence 15
+(used of texts) shortened by condensing or rewriting
+ <start> ( or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
+
+sentence 16
+with parts removed
+ <start> ( or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
+
+sentence 17
+abridged to half its original length
+ <start> ( or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
+
+sentence 18
+(British informal) summarized or abridged
+ <start> ( or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
+
+sentence 19
+(used of texts) not shortened
+ <start> ( or or <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end> <end>
 

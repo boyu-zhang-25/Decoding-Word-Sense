@@ -68,6 +68,37 @@ def build_vocab_synset():
 	print("Total vocabulary size: {}".format(vocab.idx))
 	return vocab
 
+# build the vocab for the WordNet synsets
+# those only appears in the SemCor dataset
+def build_vocab_synset_SemCor():
+
+	target_file = open("../WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.gold.key.txt", "r")
+
+	# Create a vocab wrapper and add some special tokens.
+	vocab = Vocabulary()
+
+	# iterate through all definitions in the SemCor
+	for line in target_file:
+
+		# synset and literal definition from the WN
+		key = line.replace('\n', '').split(' ')[-1]
+		synset = wn.lemma_from_key(key).synset()
+
+		# convert '.' to '__' for hashing
+		synset = synset.name().replace('.', '__')
+		vocab.add_word(synset)
+
+	# add SemEval synsets
+	semeval_file = open("../WSD_Evaluation_Framework/Evaluation_Datasets/semeval2007/semeval2007.gold.key.txt", "r")
+	for line in semeval_file:
+		key = line.replace('\n', '').split(' ')[-1]
+		synset = wn.lemma_from_key(key).synset()
+		synset = synset.name().replace('.', '__')
+		vocab.add_word(synset)
+
+	print("Total vocabulary size: {} {}".format(vocab.idx, len(vocab)))
+	return vocab
+
 # build the vocab for the WordNet definitions
 def build_vocab(threshold):
 
@@ -115,18 +146,19 @@ def build_vocab(threshold):
 def main(args):
 
 	# vocab = build_vocab(threshold = args.threshold)
-	vocab_synset = build_vocab_synset()
-	# print(vocab_synset('dog__n__01'))
+	# vocab_synset = build_vocab_synset()
+	vocab_synset_SemCor = build_vocab_synset_SemCor()
+	print(vocab_synset_SemCor('dog__n__01'))
 	vocab_path = args.vocab_path
 	with open(vocab_path, 'wb') as f:
-		pickle.dump(vocab_synset, f)
+		pickle.dump(vocab_synset_SemCor, f)
 	print("Saved the vocabulary wrapper to '{}'".format(vocab_path))
 
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 
-	parser.add_argument('--vocab_path', type = str, default = './data/synset_vocab.pkl', 
+	parser.add_argument('--vocab_path', type = str, default = './data/synset_vocab_SemCor.pkl', 
 						help = 'path for saving vocabulary wrapper')
 	parser.add_argument('--threshold', type = int, default = 0, 
 						help = 'minimum word count threshold')

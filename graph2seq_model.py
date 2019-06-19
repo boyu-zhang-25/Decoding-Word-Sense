@@ -55,37 +55,35 @@ class Graph2Seq_Model(nn.Module):
 		# word embedding for decoding sense
 		self.pad_idx = vocab('<pad>')
 		self.start_idx = vocab('<start>')
-		self.end_idx = vocab('<end>')
+		# self.end_idx = vocab('<end>')
 		self.embed = nn.Embedding(vocab.idx, self.word_embed_size, padding_idx = self.pad_idx)
 		self.dropout = nn.Dropout(dropout)
 
-	# perform all-word WSD on the SemCor dataset
-	def forward(self, senses, tagged_sent, definition, teacher_forcing_ratio = 0.4):
+	# perform per-synset SGD WSD 
+	# as a pretrain model
+	def forward(self, synset, definition, teacher_forcing_ratio = 0.4):
 		
 		'''
 		teacher_forcing: the probability of using ground truth in decoding
 
-		definition: [seq_length, self.max_length]
-		the matrix with row as seq and column as words: indices of each word in the true definition
+		definition: a list 
+		row as the batch ( == 1 here) and column as words: indices of each word in the true definition from the vocab
 
-		senses: all senses of tagged words in a list
-		tagged_sent: the target sentence (list) with only tagged words from the SemCor
+		synset: name of the target synset node
 		'''
 		
-		# treating one sentence as a batch for all-word WSD
-		# each word is an example for the decoder
-		batch_size = len(tagged_sent)
+		# SGD per synset node on the graph
+		batch_size = 1
 
 		# set the graph_lstm output same size as the embedding for now
 		# check size compatible with the decoder input
 		# assert(self.graph_lstm.hidden_size * self.graph_lstm.num_layers == self.word_embed_size)
 		# assert(self.graph_lstm.hidden_size * self.graph_lstm.num_layers + self.word_embed_size == self.decoder.input_size)
 
-		# sense embedding from the graph_lstm runing on each tagged word
-		graph_lstm_embedding = torch.zeros(batch_size, self.graph_lstm.hidden_size * self.graph_lstm.num_layers).to(device)
-		for idx, synset in enumerate(senses):
-			hidden_all, (hidden_final, cell_final) = self.graph_lstm(synset, depth = self.depth)
-			graph_lstm_embedding[idx] = hidden_final
+		# sense embedding from the graph_lstm runing on the target synset node
+		hidden_all, (graph_lstm_embedding, cell_final) = self.graph_lstm(synset, depth = self.depth)
+		graph_lstm_embedding = graph_lstm_embedding.unsqueeze(0)
+		# print('graph out size: {}'.format(graph_lstm_embedding.shape))
 
 		# tensor to store decoder outputs
 		outputs = torch.zeros(self.max_length, batch_size, self.vocab_size).to(self.device)
@@ -93,20 +91,20 @@ class Graph2Seq_Model(nn.Module):
 		# initialize the x_0 with <start>
 		# (batch_size, word_embed_size)
 		lookup_tensor = torch.tensor([self.start_idx], dtype = torch.long).to(self.device)
-		generated_embedding = self.dropout(self.embed(lookup_tensor)).repeat(batch_size, 1).to(self.device)
+		generated_embedding = self.dropout(self.embed(lookup_tensor)).to(self.device)
 		# print(generated_embedding.shape)
 
 		# concat of the graph_lstm embedding and the generated word embedding
 		# (batch_size, decoder.input_size)
 		sense_embedding = torch.cat((graph_lstm_embedding, generated_embedding), 1).to(self.device)
 
-		# initialize h_0 and c_0 for the decoder LSTM_Cell
+		# initialize h_0 and c_0 for the decoder LSTM_Cell as the h and c of the graph encoder
 		'''
 		hidden = torch.zeros(batch_size, self.decoder_hidden_size).to(self.device)
 		cell = torch.zeros(batch_size, self.decoder_hidden_size).to(self.device)
 		'''
-		hidden = hidden_final.repeat(batch_size, 1)
-		cell = cell_final.repeat(batch_size, 1)
+		hidden = graph_lstm_embedding
+		cell = cell_final.unsqueeze(0)
 
 		# visualize the result
 		result = []
@@ -125,22 +123,19 @@ class Graph2Seq_Model(nn.Module):
 			_, generated_index = torch.max(output, dim = 1)
 			result.append(generated_index)
 
-			# final word choices for all words in this sentence
-			word_index = []
+			# final word choice
+			word_index = -1
 
-			# get the generated word index for each word in the batch
-			# may use the correct word from the definition
-			# print('batch: {}'.format(batch_size))
-			for batch in range(batch_size):
-				teacher_force = random.random() < teacher_forcing_ratio
-				if teacher_force:
-					word_index.append(definition[batch][t])
-				else:
-					word_index.append(generated_index[batch])
+			# get the generated word index for the target synset
+			teacher_force = random.random() < teacher_forcing_ratio
+			if teacher_force:
+				word_index = definition[t]
+			else:
+				word_index = generated_index
 
 			# get the new embedding
 			# concat the graph_lstm embedding to the generated embedding at each time step
-			lookup_tensor = torch.tensor(word_index, dtype = torch.long).to(self.device)
+			lookup_tensor = torch.tensor([word_index], dtype = torch.long).to(self.device)
 			generated_embedding = self.dropout(self.embed(lookup_tensor)).to(self.device)
 			# print(generated_embedding.shape)			
 			sense_embedding = torch.cat((graph_lstm_embedding, generated_embedding), 1).to(self.device)

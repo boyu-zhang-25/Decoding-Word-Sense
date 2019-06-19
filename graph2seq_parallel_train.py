@@ -49,7 +49,7 @@ with open('./data/vocab.pkl', 'rb') as f:
     print("Size of vocab: {}".format(vocab.idx))
     
 # get the graph lstm synset vocab
-with open('./data/synset_vocab.pkl', 'rb') as f:
+with open('./data/synset_vocab_SemCor.pkl', 'rb') as f:
     synset_vocab = pickle.load(f)
 print("Size of synset vocab: {}".format(synset_vocab.idx))
 
@@ -191,7 +191,8 @@ small_dev_size = 1
 
 
 # the training function
-def train(model, optimizer, corpus, criterion, clip):
+# pretrain on the synsets appeared in the SemCor
+def train(model, optimizer, synset_vocab, criterion, clip):
     
     model.train()
     epoch_loss = 0

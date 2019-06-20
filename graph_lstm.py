@@ -28,11 +28,14 @@ class ChildSumGraphLSTM(RNNBase):
 	This class cannot be instantiated directly. 
 	Instead, the following subclasses runs on the WordNet:
 	  - ChildSumGraphLSTM_WordNet
+	  it supports two modes (relationships) from the WordNet:
+	  - hypernyms and hyponyms
+	  - meronyms and holonyms
 	"""
 
 	__metaclass__ = ABCMeta
 
-	def __init__(self, synset_vocab, *args, **kwargs):
+	def __init__(self, synset_vocab, mode, *args, **kwargs):
 		super(ChildSumGraphLSTM, self).__init__('LSTM', *args, **kwargs)
 
 		# lru_cache is normally used as a decorator, but that usage
@@ -43,6 +46,14 @@ class ChildSumGraphLSTM(RNNBase):
 		# all the WordNet synset embeddings and their indices
 		self.synset_vocab = synset_vocab
 		self.embedding = Embedding(synset_vocab.idx, self.input_size)
+
+		# currently only supports (hypernyms, hyponyms) and (meronyms, holonyms)
+		if mode not in ['hyper_hypon', 'mer_holo']:
+			print('Lexical Relationship Not Supported!')
+			raise NotImplementedError
+		else:
+			self.mode = mode
+
 
 	@staticmethod
 	def nonlinearity(x):
@@ -261,11 +272,25 @@ class ChildSumGraphLSTM(RNNBase):
 			# print('{}cut-off: {}; depth: {}; direction: {}\n'.format('    ' * (old_depth - depth), synset, depth, direction))
 			return oidx, (h_prev, c_prev)
 
-		# find the all hyper/hypon synsets of the current nodes by the WN
-		if direction == 'up':
-			oidx = [hyper.name() for hyper in wn.synset(synset).hypernyms()]
+		# check the mode and pick the synsets from the WN
+		if self.mode == 'hyper_hypon':
+
+			# find the all hyper/hypon synsets of the current nodes by the WN
+			if direction == 'up':
+				oidx = [hyper.name() for hyper in wn.synset(synset).hypernyms()]
+			else:
+				oidx = [hypon.name() for hypon in wn.synset(synset).hyponyms()]
+		elif self.mode == 'mer_holo':
+
+			# find the all mer/holo synsets of the current nodes by the WN
+			if direction == 'up':
+				oidx = [mer.name() for mer in wn.synset(synset).part_meronyms()]
+			else:
+				oidx = [holo.name() for holo in wn.synset(synset).part_holonyms()]
 		else:
-			oidx = [hypon.name() for hypon in wn.synset(synset).hyponyms()]
+			print('Lexical Relationship Not Supported!')
+			raise NotImplementedError
+		print(oidx, layer, direction, self.mode)					
 
 		# recursively construct all embedding for the hypers/hypons
 		if len(oidx) > 0:
@@ -340,13 +365,15 @@ def main():
 		synset_vocab = pickle.load(f)
 	print("Size of synset vocab: {}".format(synset_vocab.idx))
 
-	graph = ChildSumGraphLSTM_WordNet(synset_vocab = synset_vocab, input_size = 300, hidden_size = 128, num_layers = 2, bidirectional = True, bias = True)
-	synset = wn.synset('dog.n.01').name()
+	graph = ChildSumGraphLSTM_WordNet(synset_vocab = synset_vocab, mode = 'hyper_hypon', input_size = 256, hidden_size = 128, num_layers = 2, bidirectional = True, bias = True)
+	dog = wn.synset('dog.n.01').name()
+	tree = wn.synset('tree.n.01').name()
+	atom = wn.synset('atom.n.01').name()
 
 	start_time = time.time()
 
 	# iterate through all synsets in the WN
-	hidden_all, (hidden_final, cell_final) = graph(synset, depth = 10)
+	hidden_all, (hidden_final, cell_final) = graph(dog, depth = 2)
 	print(hidden_final.shape, cell_final.shape)
 
 	end_time = time.time()

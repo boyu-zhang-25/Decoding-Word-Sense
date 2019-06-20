@@ -15,14 +15,16 @@ graph_lstm-decoder
 class Graph2Seq_Model(nn.Module):
 
 	def __init__(self,
-				graph_lstm,
-				depth,
+				hyper_hypon_graph,
+				mer_holo_graph,
+				hyper_hypon_depth,
+				mer_holo_depth, 
 				decoder,
 				vocab,
 				max_seq_length,
 				decoder_hidden_size,
 				word_embed_size = 256,
-				dropout = 0.3, 
+				dropout = 0.2, 
 				regularization = None,
 				device = device):
 		super(Graph2Seq_Model, self).__init__()
@@ -45,8 +47,13 @@ class Graph2Seq_Model(nn.Module):
 			self.regularization = self.regularization.to(self.device)
 		'''
 
-		self.graph_lstm = graph_lstm
-		self.depth = depth
+		# sense embedding is made by concat [[hyper, hypon], [mer, holo]]
+		self.hyper_hypon_graph = hyper_hypon_graph
+		self.mer_holo_graph = mer_holo_graph
+		self.hyper_hypon_depth = hyper_hypon_depth
+		self.mer_holo_depth = mer_holo_depth
+
+		# decoder and its settings
 		self.decoder = decoder
 		self.max_length = max_seq_length
 		self.vocab_size = vocab.idx
@@ -81,8 +88,14 @@ class Graph2Seq_Model(nn.Module):
 		# assert(self.graph_lstm.hidden_size * self.graph_lstm.num_layers + self.word_embed_size == self.decoder.input_size)
 
 		# sense embedding from the graph_lstm runing on the target synset node
-		hidden_all, (graph_lstm_embedding, cell_final) = self.graph_lstm(synset, depth = self.depth)
-		graph_lstm_embedding = graph_lstm_embedding.unsqueeze(0)
+		# hyper_hypon_graph
+		hyper_hypon_h_all, (hyper_hypon_hidden, hyper_hypon_cell) = self.hyper_hypon_graph(synset, depth = self.hyper_hypon_depth)
+
+		# mer_holo_graph
+		mer_holo_h_all, (mer_holo_hidden, mer_holo_cell) = self.mer_holo_graph(synset, depth = self.mer_holo_depth)
+
+		# sense embedding is made by concat [[hyper, hypon], [mer, holo]]
+		graph_lstm_embedding = torch.cat((hyper_hypon_hidden, mer_holo_hidden)).unsqueeze(0)
 		# print('graph out size: {}'.format(graph_lstm_embedding.shape))
 
 		# tensor to store decoder outputs
@@ -104,7 +117,7 @@ class Graph2Seq_Model(nn.Module):
 		cell = torch.zeros(batch_size, self.decoder_hidden_size).to(self.device)
 		'''
 		hidden = graph_lstm_embedding
-		cell = cell_final.unsqueeze(0)
+		cell = torch.cat((hyper_hypon_cell, mer_holo_cell)).unsqueeze(0)
 
 		# visualize the result
 		result = []

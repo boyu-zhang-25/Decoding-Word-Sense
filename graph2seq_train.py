@@ -21,7 +21,7 @@ from collections import Iterable, defaultdict
 import random
 
 
-# In[ ]:
+# In[2]:
 
 
 # set determinstic results
@@ -33,7 +33,7 @@ torch.backends.cudnn.deterministic = True
 '''
 
 
-# In[ ]:
+# In[3]:
 
 
 from allennlp.commands.elmo import ElmoEmbedder
@@ -59,7 +59,7 @@ with open('./data/synset_vocab_SemCor.pkl', 'rb') as f:
 print("Size of synset vocab in SemCor: {}".format(synset_vocab_SemCor.idx))
 
 
-# In[ ]:
+# In[4]:
 
 
 # cuda
@@ -72,19 +72,60 @@ if torch.cuda.device_count() > 1:
     print("Let's use", torch.cuda.device_count(), "GPUs!")
 
 
-# In[ ]:
+# In[5]:
 
 
 # some hyperparameters
 max_seq_length = 20
 decoder_hidden_size = 256
 decoder_input_size = 512
-depth = 4
+mer_holo_depth = 4
+hyper_hypon_depth = 4
 
-# please check the emb2seq_parallel_train.py for CUDA parallel version
-graph_lstm = ChildSumGraphLSTM_WordNet(synset_vocab = synset_vocab, input_size = 256, hidden_size = 128, num_layers = 2, bidirectional = True, bias = True, dropout = 0.3)
-decoder = Decoder(vocab_size = vocab.idx, max_seq_length = max_seq_length, hidden_size = decoder_hidden_size, input_size = decoder_input_size)
-graph2seq_model = Graph2Seq_Model(graph_lstm, depth, decoder, vocab = vocab, max_seq_length = max_seq_length, decoder_hidden_size = decoder_hidden_size)
+# set the hyper-hypon and mer-holo graph lstms
+hyper_hypon_graph = ChildSumGraphLSTM_WordNet(
+    synset_vocab = synset_vocab, 
+    mode = 'hyper_hypon', 
+    input_size = 256, 
+    hidden_size = 64, 
+    num_layers = 2, 
+    bidirectional = True, 
+    bias = True, 
+    dropout = 0.2)
+
+mer_holo_graph = ChildSumGraphLSTM_WordNet(
+    synset_vocab = synset_vocab, 
+    mode = 'mer_holo',
+    input_size = 256, 
+    hidden_size = 64, 
+    num_layers = 2, 
+    bidirectional = True, 
+    bias = True, 
+    dropout = 0.2)
+
+# decoder
+# input size of decoder = 512
+# output size of per graph lstm = 2 * 64 = 128
+# concat graph embedding size = 256
+# concat word embedding size (decoder_hidden_size) = 512 = input size of decoder
+decoder = Decoder(
+    vocab_size = vocab.idx, 
+    max_seq_length = max_seq_length, 
+    hidden_size = decoder_hidden_size, 
+    input_size = decoder_input_size)
+
+# the model instance
+graph2seq_model = Graph2Seq_Model(
+    hyper_hypon_graph,
+    mer_holo_graph,
+    hyper_hypon_depth,
+    mer_holo_depth, 
+    decoder, 
+    vocab = vocab, 
+    max_seq_length = max_seq_length, 
+    decoder_hidden_size = decoder_hidden_size)
+
+# cuda
 graph2seq_model.to(device)
 
 # randomly initialize the weights
@@ -97,17 +138,17 @@ def init_weights(m):
 graph2seq_model.apply(init_weights)
 
 
-# In[ ]:
+# In[6]:
 
 
 # training hyperparameters
-optimizer = optim.Adam(graph2seq_model.parameters(), lr = 0.005)
+optimizer = optim.Adam(graph2seq_model.parameters())
 PAD_IDX = vocab('<pad>')
 print('PAD_IDX: {}'.format(PAD_IDX))
 criterion = nn.CrossEntropyLoss(ignore_index = PAD_IDX).to(device)
 
 
-# In[ ]:
+# In[7]:
 
 
 # utility function
@@ -143,7 +184,7 @@ def def2idx(definition, max_length, vocab):
   
 
 
-# In[ ]:
+# In[8]:
 
 
 # the training function
@@ -196,7 +237,7 @@ def train(model, optimizer, synset_vocab_SemCor, criterion, clip):
     return epoch_loss / synset_num, all_sentence_result, all_definitions
 
 
-# In[ ]:
+# In[9]:
 
 
 # time used by each epoch
@@ -207,7 +248,7 @@ def epoch_time(start_time, end_time):
     return elapsed_mins, elapsed_secs
 
 
-# In[ ]:
+# In[10]:
 
 
 # utility function
@@ -226,7 +267,7 @@ def arrange_result(all_sentence_result):
     return arranged_all_sentence_result
 
 
-# In[ ]:
+# In[11]:
 
 
 # utility function
@@ -240,7 +281,7 @@ def write_result_to_file(arranged_all_sentence_result, all_definition):
             f.write("\n")
 
 
-# In[ ]:
+# In[12]:
 
 
 # train 
@@ -278,7 +319,7 @@ for epoch in range(N_EPOCHS):
     print(f'\tTrain Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f}')
 
 
-# In[ ]:
+# In[13]:
 
 
 # plot the learning curve
@@ -291,7 +332,7 @@ with open('train_loss.tsv', mode = 'w') as loss_file:
     csv_writer.writerow(train_losses)
 
 
-# In[ ]:
+# In[14]:
 
 
 plt.figure(1)
@@ -306,5 +347,4 @@ plt.ylabel('Loss')
 plt.xlabel('Number of Iteration')
 plt.tight_layout()
 plt.savefig('train_loss.png')
-
 

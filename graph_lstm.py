@@ -290,7 +290,7 @@ class ChildSumGraphLSTM(RNNBase):
 		else:
 			print('Lexical Relationship Not Supported!')
 			raise NotImplementedError
-		print(oidx, layer, direction, self.mode)					
+		# print(oidx, layer, direction, self.mode)					
 
 		# recursively construct all embedding for the hypers/hypons
 		if len(oidx) > 0:

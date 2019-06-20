@@ -89,13 +89,13 @@ class Graph2Seq_Model(nn.Module):
 		outputs = torch.zeros(self.max_length, batch_size, self.vocab_size).to(self.device)
 
 		# initialize the x_0 with <start>
-		# (batch_size, word_embed_size)
+		# (batch_size == 1, word_embed_size)
 		lookup_tensor = torch.tensor([self.start_idx], dtype = torch.long).to(self.device)
 		generated_embedding = self.dropout(self.embed(lookup_tensor)).to(self.device)
 		# print(generated_embedding.shape)
 
 		# concat of the graph_lstm embedding and the generated word embedding
-		# (batch_size, decoder.input_size)
+		# (batch_size == 1, decoder.input_size)
 		sense_embedding = torch.cat((graph_lstm_embedding, generated_embedding), 1).to(self.device)
 
 		# initialize h_0 and c_0 for the decoder LSTM_Cell as the h and c of the graph encoder

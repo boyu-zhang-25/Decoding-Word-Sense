@@ -40,7 +40,7 @@ class ChildSumGraphLSTM(RNNBase):
 		# cache
 		self._get_parameters = lru_cache()(self._get_parameters)
 
-		# all synset embeddings and their indices
+		# all the WordNet synset embeddings and their indices
 		self.synset_vocab = synset_vocab
 		self.embedding = Embedding(synset_vocab.idx, self.input_size)
 

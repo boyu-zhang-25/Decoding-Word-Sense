@@ -85,7 +85,7 @@ hyper_hypon_depth = 4
 # set the hyper-hypon and mer-holo graph lstms
 hyper_hypon_graph = ChildSumGraphLSTM_WordNet(
     synset_vocab = synset_vocab, 
-    mode = 'hyper_hypon', 
+    relationship = 'hyper_hypon', 
     input_size = 256, 
     hidden_size = 64, 
     num_layers = 2, 
@@ -95,7 +95,7 @@ hyper_hypon_graph = ChildSumGraphLSTM_WordNet(
 
 mer_holo_graph = ChildSumGraphLSTM_WordNet(
     synset_vocab = synset_vocab, 
-    mode = 'mer_holo',
+    relationship = 'mer_holo',
     input_size = 256, 
     hidden_size = 64, 
     num_layers = 2, 

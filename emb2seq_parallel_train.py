@@ -66,11 +66,6 @@ encoder = Encoder(elmo_class = elmo)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print('Device: {}'.format(device))
 
-# data parallel for the decoder
-if torch.cuda.device_count() > 1:
-	print("Let's use", torch.cuda.device_count(), "GPUs!")
-	decoder = nn.DataParallel(decoder)
-
 # create the model instance
 emb2seq_model = Emb2Seq_Model(encoder, decoder, vocab = vocab, max_seq_length = max_seq_length, decoder_hidden_size = decoder_hidden_size)
 emb2seq_model.to(device)
@@ -81,8 +76,21 @@ def init_weights(m):
 	for name, param in m.named_parameters():
 		if param.requires_grad:
 			print(name, param.shape)
-		# nn.init.uniform_(param.data, -0.08, 0.08)   
+		nn.init.uniform_(param.data, -0.08, 0.08)   
 emb2seq_model.apply(init_weights)
+# print(emb2seq_model.decoder.state_dict())
+
+# use pretrained decoder
+pretrain = True
+pretrain_path = './models/decoder.pth'
+if pretrain:
+	emb2seq_model.decoder.load_state_dict(torch.load(pretrain_path))
+	# print(emb2seq_model.decoder.state_dict())
+
+# data parallel for the decoder
+if torch.cuda.device_count() > 1:
+	print("Let's use", torch.cuda.device_count(), "GPUs!")
+	emb2seq_model.decoder = nn.DataParallel(emb2seq_model.decoder)
 
 # ignore idx on the padding
 PAD_IDX = vocab('<pad>')
@@ -169,8 +177,8 @@ semeval_tree = ET.parse('../WSD_Evaluation_Framework/Evaluation_Datasets/semeval
 semeval_corpus = semeval_tree.getroot()
 
 # small train and test sets
-small_train_size = 1
-small_dev_size = 1
+# small_train_size = 1
+# small_dev_size = 1
 
 
 # In[9]:
@@ -183,7 +191,7 @@ def train(model, optimizer, corpus, criterion, clip):
 	epoch_loss = 0
 	sentence_num = 0
 	
-	for sub_corpus in corpus[0:small_train_size]:
+	for sub_corpus in corpus:
 	
 		for sent in sub_corpus:
 
@@ -255,7 +263,7 @@ def evaluate(model, corpus, criterion):
 	
 	with torch.no_grad():
 	
-		for sub_corpus in corpus[0:small_dev_size]:
+		for sub_corpus in corpus:
 	
 			for sent in sub_corpus:
 				
@@ -340,7 +348,7 @@ def arrange_result(all_sentence_result):
 # utility function
 # write the results to the file, with the ground-truth
 def write_result_to_file(arranged_all_sentence_result, all_definition):
-	with open('result.txt', 'w') as f:
+	with open('emb2seq_result.txt', 'w') as f:
 		for idx, arranged_results in enumerate(arranged_all_sentence_result):
 			f.write("sentence {}\n".format(idx))
 
@@ -384,7 +392,7 @@ for epoch in range(N_EPOCHS):
 	if valid_loss <= best_valid_loss:
 
 		best_valid_loss = valid_loss
-		torch.save(emb2seq_model.state_dict(), 'emb2seq_best_model.pth')
+		torch.save(emb2seq_model.state_dict(), './models/emb2seq_best_model.pth')
 		
 		# record the result
 		write_result_to_file(arranged_all_sentence_result, all_definitions)

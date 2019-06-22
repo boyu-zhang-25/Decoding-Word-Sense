@@ -18,7 +18,7 @@ class Encoder(nn.Module):
 				embedding_size = 1024, # ELMo embedding size
 				elmo_class = None,
 				tuned_embed_size = 512,
-				mlp_dropout = 0.2,
+				mlp_dropout = 0.1,
 				lstm_hidden_size = 256, # bi-directional, so final size is 512
 				MLP_size = 300, # 1 hidden layer for fine-tuning sense vector
 				device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
@@ -49,7 +49,7 @@ class Encoder(nn.Module):
 						self.lstm_hidden_size, 
 						num_layers = 2, 
 						bidirectional = True, 
-						dropout = 0.35)
+						dropout = 0.2)
 
 		# build a 1-hidden-layer MLP on top of LSTM for fine-tuning
 		self.mlp = nn.Sequential(

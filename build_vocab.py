@@ -99,6 +99,49 @@ def build_vocab_synset_SemCor():
 	print("Total vocabulary size: {} {}".format(vocab.idx, len(vocab)))
 	return vocab
 
+# build the decoder vocab for SemCor WN definitions
+def build_vocab_decoder_SemCor(threshold):
+	
+	# Create a vocab wrapper and add some special tokens.
+	counter = Counter()
+	target_file = open("../WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.gold.key.txt", "r")
+
+	# iterate through all definitions in the SemCor
+	for line in target_file:
+
+		# synset and literal definition from the WN
+		key = line.replace('\n', '').split(' ')[-1]
+		synset = wn.lemma_from_key(key).synset()
+		definition = synset.definition()
+		def_tokens = nltk.tokenize.word_tokenize(definition)
+		counter.update(def_tokens)
+
+	# add SemEval synsets
+	semeval_file = open("../WSD_Evaluation_Framework/Evaluation_Datasets/semeval2007/semeval2007.gold.key.txt", "r")
+	for line in semeval_file:
+		key = line.replace('\n', '').split(' ')[-1]
+		synset = wn.lemma_from_key(key).synset()
+		definition = synset.definition()
+		def_tokens = nltk.tokenize.word_tokenize(definition)
+		counter.update(def_tokens)
+
+	# If the word frequency is less than 'threshold', then the word is discarded.
+	words = [word for word, cnt in counter.items() if cnt >= threshold]
+
+	# Create a vocab wrapper and add some special tokens.
+	vocab = Vocabulary()
+	vocab.add_word('<pad>')
+	vocab.add_word('<start>')
+	vocab.add_word('<end>')
+	vocab.add_word('<unk>')
+
+	# Add the words to the vocabulary.
+	for i, word in enumerate(words):
+		vocab.add_word(word)
+
+	print("Total vocabulary size: {}".format(vocab.idx))
+	return vocab
+
 # build the vocab for the WordNet definitions
 def build_vocab(threshold):
 
@@ -147,18 +190,19 @@ def main(args):
 
 	# vocab = build_vocab(threshold = args.threshold)
 	# vocab_synset = build_vocab_synset()
-	vocab_synset_SemCor = build_vocab_synset_SemCor()
-	print(vocab_synset_SemCor('dog__n__01'))
+	# vocab_synset_SemCor = build_vocab_synset_SemCor()
+	# print(vocab_synset_SemCor('dog__n__01'))
+	vocab_decoder_semcor = build_vocab_decoder_SemCor(0)
 	vocab_path = args.vocab_path
 	with open(vocab_path, 'wb') as f:
-		pickle.dump(vocab_synset_SemCor, f)
+		pickle.dump(vocab_decoder_semcor, f)
 	print("Saved the vocabulary wrapper to '{}'".format(vocab_path))
 
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 
-	parser.add_argument('--vocab_path', type = str, default = './data/synset_vocab_SemCor.pkl', 
+	parser.add_argument('--vocab_path', type = str, default = './data/vocab.pkl', 
 						help = 'path for saving vocabulary wrapper')
 	parser.add_argument('--threshold', type = int, default = 0, 
 						help = 'minimum word count threshold')

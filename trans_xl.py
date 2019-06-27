@@ -14,8 +14,8 @@ logging.basicConfig(level=logging.INFO)
 tokenizer = TransfoXLTokenizer.from_pretrained('transfo-xl-wt103')
 
 # Tokenized input
-text_1 = "what do we need to make"
-text_2 = "in order to make it or to"
+text_1 = "what do we need to make a cake?"
+text_2 = "in order to make a cake, we need"
 tokenized_text_1 = tokenizer.tokenize(text_1)
 tokenized_text_2 = tokenizer.tokenize(text_2)
 # print(tokenized_text_1, tokenized_text_2)
@@ -23,6 +23,7 @@ tokenized_text_2 = tokenizer.tokenize(text_2)
 # get the decoder vocab
 with open('./data/vocab.pkl', 'rb') as f:
 	vocab = pickle.load(f)
+	# print(vocab('<unk>'))
 	print("Size of vocab: {}".format(vocab.idx))
 
 word_idx_in_order = [tokenizer.convert_tokens_to_ids([vocab.idx2word.get(idx)])[0] for idx in range(vocab.idx)]
@@ -63,10 +64,16 @@ with torch.no_grad():
     predictions_2, mems_2 = model(tokens_tensor_2, mems = mems_1)
 
 # get the predicted last token
-print(predictions_2[0, -1, :].shape)
+# print(predictions_2[0, -1, :].shape)
 predicted_index = torch.argmax(predictions_2[0, -1, :]).item()
 predicted_token = tokenizer.convert_ids_to_tokens([predicted_index])[0]
 print(predicted_token)
 
 # get subset vocab for our model
-
+our_prediction = torch.zeros(len(word_idx_in_order))
+for our_idx, xl_idx in enumerate(word_idx_in_order):
+	our_prediction[our_idx] = predictions_2[0, -1, xl_idx]
+our_index = torch.argmax(our_prediction).item()
+our_token = vocab.idx2word.get(our_index)
+print(our_token)
+print(vocab(predicted_token))

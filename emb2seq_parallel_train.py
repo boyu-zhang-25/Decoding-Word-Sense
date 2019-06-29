@@ -81,7 +81,7 @@ emb2seq_model.apply(init_weights)
 # print(emb2seq_model.decoder.state_dict())
 
 # use pretrained decoder
-pretrain = True
+pretrain = False
 pretrain_path = './models/decoder.pth'
 if pretrain:
 	emb2seq_model.decoder.load_state_dict(torch.load(pretrain_path))

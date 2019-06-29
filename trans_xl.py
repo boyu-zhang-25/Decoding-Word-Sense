@@ -1,6 +1,7 @@
 import torch
 from pytorch_pretrained_bert import TransfoXLTokenizer, TransfoXLModel, TransfoXLLMHeadModel
 import pickle
+from io import open
 
 # cuda
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -15,7 +16,7 @@ tokenizer = TransfoXLTokenizer.from_pretrained('transfo-xl-wt103')
 
 # Tokenized input
 text_1 = "what do we need to make a cake?"
-text_2 = "in order to make a cake, we need"
+text_2 = "in order to make"
 tokenized_text_1 = tokenizer.tokenize(text_1)
 tokenized_text_2 = tokenizer.tokenize(text_2)
 # print(tokenized_text_1, tokenized_text_2)
@@ -43,6 +44,7 @@ print(len(num))
 # Convert token to vocabulary indices
 indexed_tokens_1 = tokenizer.convert_tokens_to_ids(tokenized_text_1)
 indexed_tokens_2 = tokenizer.convert_tokens_to_ids(tokenized_text_2)
+# print(indexed_tokens_1)
 
 # Convert inputs to PyTorch tensors
 tokens_tensor_1 = torch.tensor([indexed_tokens_1])
@@ -51,7 +53,13 @@ tokens_tensor_2 = torch.tensor([indexed_tokens_2])
 # Load pre-trained model (weights)
 model = TransfoXLLMHeadModel.from_pretrained('transfo-xl-wt103')
 model.eval()
-
+'''
+with open('trans_vocab.txt', 'w') as f:
+	for i in range(267735):
+		token = tokenizer.convert_ids_to_tokens([i])[0]
+		f.write("%s\n" % token)
+'''
+print(tokenizer.convert_tokens_to_ids(['']))
 # If you have a GPU, put everything on cuda
 tokens_tensor_1 = tokens_tensor_1.to(device)
 tokens_tensor_2 = tokens_tensor_2.to(device)
@@ -61,7 +69,8 @@ with torch.no_grad():
     # Predict all tokens
     predictions_1, mems_1 = model(tokens_tensor_1)
     # We can re-use the memory cells in a subsequent call to attend a longer context
-    predictions_2, mems_2 = model(tokens_tensor_2, mems = mems_1)
+    # target = tokens_tensor_1
+    predictions_2, mems_2 = model(tokens_tensor_2, target = target, mems = mems_1)
 
 # get the predicted last token
 # print(predictions_2[0, -1, :].shape)

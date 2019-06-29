@@ -7,7 +7,18 @@ import itertools
 import random
 from encoder import *
 from decoder import *
+import time
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+# the auxiliary transformer-xl for the decoder grammar
+from pytorch_pretrained_bert import TransfoXLTokenizer, TransfoXLModel, TransfoXLLMHeadModel
+
+# Load pre-trained model tokenizer (vocabulary from wikitext 103)
+tokenizer = TransfoXLTokenizer.from_pretrained('transfo-xl-wt103')
+# Load pre-trained model (weights)
+trans_model = TransfoXLLMHeadModel.from_pretrained('transfo-xl-wt103')
+trans_model.eval()
+trans_model.to(device)
 
 '''
 baseline model: encoder-decoder
@@ -32,18 +43,9 @@ class Emb2Seq_Model(nn.Module):
 		# NOTICE: 1/2 of the decoder.embed_size because we will concat later
 		self.word_embed_size = word_embed_size
 
-		'''
-		if regularization == "l1":
-			self.regularization = L1Loss()
-		elif regularization == "smoothl1":
-			self.regularization = SmoothL1Loss()
-		else:
-			self.regularization = None
-		'''
-		'''
-		if self.regularization:
-			self.regularization = self.regularization.to(self.device)
-		'''
+		# words in the decoder vocab in order
+		# converted to the vocab idx for the transformer-xl
+		self.word_idx_in_order = [tokenizer.convert_tokens_to_ids([vocab.idx2word.get(idx)])[0] for idx in range(vocab.idx)]
 
 		self.encoder = encoder
 		self.decoder = decoder
@@ -57,6 +59,38 @@ class Emb2Seq_Model(nn.Module):
 		self.end_idx = vocab('<end>')
 		self.embed = nn.Embedding(vocab.idx, self.word_embed_size, padding_idx = self.pad_idx)
 		self.dropout = nn.Dropout(dropout)
+
+	# given the generated sequence and memory from the previous step
+	# get the log probability distribution over the vocab by the transfomer-xl model 
+	def _get_trans_prob(self, result, batch_size, mem):
+
+		# get the idx (batch, seq_length) for the transformer
+		# only after the first 3 time step
+		context = self._get_trans_idx(result, batch_size)
+		with torch.no_grad():
+			if mem == -1:
+				# Predict all tokens
+				predictions, mems = trans_model(context)
+			else:
+				# We can re-use the memory cells in a subsequent call to attend a longer context
+				predictions, mems = trans_model(context, mems = mem)
+
+		# get the log probability for predicted last token
+		# for the subset vocab for our model
+		our_prediction = torch.zeros(batch_size, len(self.word_idx_in_order)).to(device)
+		for our_idx, xl_idx in enumerate(self.word_idx_in_order):
+			our_prediction[:, our_idx] = predictions[:, -1, xl_idx]
+
+		return our_prediction, mems
+
+	# helper method: get the idx form of the current batch
+	# (batch, seq) for the transformer-xl
+	def _get_trans_idx(self, result, batch_size):
+		context = torch.zeros(batch_size, len(result), dtype = torch.long).to(device)
+		for b in range(batch_size):
+			for l in range(len(result)):
+				context[b, l] = self.word_idx_in_order[result[l][b].item()]
+		return context
 
 	# perform all-word WSD on the SemCor dataset
 	def forward(self, sentence, tagged_sent, definition, teacher_forcing_ratio = 0.4):
@@ -98,7 +132,10 @@ class Emb2Seq_Model(nn.Module):
 		cell = torch.zeros(batch_size, self.decoder_hidden_size).to(self.device)
 
 		# visualize the result
+		# store decoding context for the transformer-xl
+		# 'result': list[tensor] of size (seq_length, batch) 
 		result = []
+		mem = -1
 
 		# explicitly iterate through the max_length to decode
 		for t in range(self.max_length):
@@ -110,6 +147,13 @@ class Emb2Seq_Model(nn.Module):
 			# print(output.shape)
 			outputs[t] = output
 
+			# for the final word choice, using convex combination with the transformer-xl
+			# only after the first 3 time step
+			if t > 3:
+				alpha = 0.5
+				trans_prob, mem = self._get_trans_prob(result, batch_size, mem)
+				output = alpha * output + (1 - alpha) * trans_prob
+
 			# get the max word index from the vocabulary
 			_, generated_index = torch.max(output, dim = 1)
 			result.append(generated_index)
@@ -119,7 +163,7 @@ class Emb2Seq_Model(nn.Module):
 
 			# get the generated word index for each word in the batch
 			# may use the correct word from the definition
-			# print('batch: {}'.format(batch_size))
+			# store the context for the transformer-xl
 			for batch in range(batch_size):
 				teacher_force = random.random() < teacher_forcing_ratio
 				if teacher_force:

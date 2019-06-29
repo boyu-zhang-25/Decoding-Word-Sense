@@ -52,7 +52,7 @@ with open('./data/vocab.pkl', 'rb') as f:
 # In[4]:
 
 # some hyperparameters
-max_seq_length = 20
+max_seq_length = 15
 decoder_hidden_size = 256
 
 decoder = Decoder(vocab_size = vocab.idx, max_seq_length = max_seq_length, hidden_size = decoder_hidden_size)

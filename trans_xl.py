@@ -15,8 +15,8 @@ logging.basicConfig(level=logging.INFO)
 tokenizer = TransfoXLTokenizer.from_pretrained('transfo-xl-wt103')
 
 # Tokenized input
-text_1 = "what do we need to make a cake?"
-text_2 = "in order to make"
+text_1 = "what do we need"
+text_2 = "in order to finish"
 tokenized_text_1 = tokenizer.tokenize(text_1)
 tokenized_text_2 = tokenizer.tokenize(text_2)
 # print(tokenized_text_1, tokenized_text_2)
@@ -47,8 +47,11 @@ indexed_tokens_2 = tokenizer.convert_tokens_to_ids(tokenized_text_2)
 # print(indexed_tokens_1)
 
 # Convert inputs to PyTorch tensors
-tokens_tensor_1 = torch.tensor([indexed_tokens_1])
-tokens_tensor_2 = torch.tensor([indexed_tokens_2])
+tokens_tensor_1 = torch.tensor(indexed_tokens_1)
+tokens_tensor_2 = torch.tensor(indexed_tokens_2)
+
+final_tensor = torch.stack((tokens_tensor_1, tokens_tensor_2), 0)
+print(final_tensor.shape)
 
 # Load pre-trained model (weights)
 model = TransfoXLLMHeadModel.from_pretrained('transfo-xl-wt103')
@@ -59,25 +62,30 @@ with open('trans_vocab.txt', 'w') as f:
 		token = tokenizer.convert_ids_to_tokens([i])[0]
 		f.write("%s\n" % token)
 '''
-print(tokenizer.convert_tokens_to_ids(['']))
+# print(tokenizer.convert_tokens_to_ids(['']))
 # If you have a GPU, put everything on cuda
 tokens_tensor_1 = tokens_tensor_1.to(device)
 tokens_tensor_2 = tokens_tensor_2.to(device)
+final_tensor = final_tensor.to(device)
 model.to(device)
 
 with torch.no_grad():
     # Predict all tokens
-    predictions_1, mems_1 = model(tokens_tensor_1)
+    # predictions_1, mems_1 = model(tokens_tensor_1)
     # We can re-use the memory cells in a subsequent call to attend a longer context
     # target = tokens_tensor_1
-    predictions_2, mems_2 = model(tokens_tensor_2, target = target, mems = mems_1)
+    # predictions_2, mems_2 = model(tokens_tensor_2, mems = mems_1)
+    predictions_2, mems_2 = model(final_tensor)
+    print(predictions_2.shape)
 
 # get the predicted last token
 # print(predictions_2[0, -1, :].shape)
-predicted_index = torch.argmax(predictions_2[0, -1, :]).item()
-predicted_token = tokenizer.convert_ids_to_tokens([predicted_index])[0]
+predicted_index = torch.argmax(predictions_2[:, -1, :], dim = 1, keepdim = True)
+print(predicted_index.shape)
+predicted_token = tokenizer.convert_ids_to_tokens([predicted_index[0]])
 print(predicted_token)
-
+predicted_token = tokenizer.convert_ids_to_tokens([predicted_index[1]])
+print(predicted_token)
 # get subset vocab for our model
 our_prediction = torch.zeros(len(word_idx_in_order))
 for our_idx, xl_idx in enumerate(word_idx_in_order):

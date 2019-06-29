@@ -55,7 +55,11 @@ with open('./data/vocab.pkl', 'rb') as f:
 max_seq_length = 15
 decoder_hidden_size = 256
 
-decoder = Decoder(vocab_size = vocab.idx, max_seq_length = max_seq_length, hidden_size = decoder_hidden_size)
+decoder = Decoder(
+	vocab_size = vocab.idx, 
+	max_seq_length = max_seq_length, 
+	hidden_size = decoder_hidden_size)
+
 encoder = Encoder(elmo_class = elmo)
 
 
@@ -66,16 +70,37 @@ encoder = Encoder(elmo_class = elmo)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print('Device: {}'.format(device))
 
+# the auxiliary transformer-xl for the decoder grammar
+from pytorch_pretrained_bert import TransfoXLTokenizer, TransfoXLModel, TransfoXLLMHeadModel
+
+# Load pre-trained model tokenizer (vocabulary from wikitext 103)
+tokenizer = TransfoXLTokenizer.from_pretrained('./models/')
+# Load pre-trained model (weights)
+trans_model = TransfoXLLMHeadModel.from_pretrained('./models/')
+trans_model.eval()
+trans_model.to(device)
+
+word_idx_in_order = [tokenizer.convert_tokens_to_ids([vocab.idx2word.get(idx)])[0] for idx in range(vocab.idx)]
+
 # create the model instance
-emb2seq_model = Emb2Seq_Model(encoder, decoder, vocab = vocab, max_seq_length = max_seq_length, decoder_hidden_size = decoder_hidden_size)
+emb2seq_model = Emb2Seq_Model(
+	encoder, 
+	decoder, 
+	vocab = vocab, 
+	max_seq_length = max_seq_length, 
+	decoder_hidden_size = decoder_hidden_size,
+	word_idx_in_order = word_idx_in_order)
+
 emb2seq_model.to(device)
 optimizer = optim.Adam(emb2seq_model.parameters())
 
 # randomly initialize the weights
 def init_weights(m):
 	for name, param in m.named_parameters():
+		'''
 		if param.requires_grad:
 			print(name, param.shape)
+		'''
 		nn.init.uniform_(param.data, -0.08, 0.08)   
 emb2seq_model.apply(init_weights)
 # print(emb2seq_model.decoder.state_dict())
@@ -222,7 +247,12 @@ def train(model, optimizer, corpus, criterion, clip):
 
 				# get the encoder-decoder result
 				# (self.max_length, batch_size, vocab_size)
-				output, _ = model(sentence, tagged_sent, definitions, teacher_forcing_ratio = 0.4)
+				output, _ = model(
+								sentence, 
+								tagged_sent, 
+								definitions, 
+								trans_model, 
+								teacher_forcing_ratio = 0.4)
 				
 				# adjust dimension for loss calculation
 				# (self.max_length * batch_size, vocab_size)
@@ -292,7 +322,13 @@ def evaluate(model, corpus, criterion):
 
 					# get the encoder-decoder result
 					# (self.max_length, batch_size, vocab_size)
-					output, result = model(sentence, tagged_sent, definitions, teacher_forcing_ratio = 0)
+					output, result = model(
+										sentence, 
+										tagged_sent, 
+										definitions, 
+										trans_model, 
+										teacher_forcing_ratio = 0)
+
 					all_sentence_result.append(result)
 					all_definitions.append(literal_def)
 					

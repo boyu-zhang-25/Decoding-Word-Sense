@@ -10,16 +10,6 @@ from decoder import *
 import time
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# the auxiliary transformer-xl for the decoder grammar
-from pytorch_pretrained_bert import TransfoXLTokenizer, TransfoXLModel, TransfoXLLMHeadModel
-
-# Load pre-trained model tokenizer (vocabulary from wikitext 103)
-tokenizer = TransfoXLTokenizer.from_pretrained('transfo-xl-wt103')
-# Load pre-trained model (weights)
-trans_model = TransfoXLLMHeadModel.from_pretrained('transfo-xl-wt103')
-trans_model.eval()
-trans_model.to(device)
-
 '''
 baseline model: encoder-decoder
 feed the encoder result directly to the decoder
@@ -32,6 +22,7 @@ class Emb2Seq_Model(nn.Module):
 				vocab,
 				max_seq_length,
 				decoder_hidden_size,
+				word_idx_in_order,
 				word_embed_size = 256,
 				dropout = 0.2, 
 				regularization = None,
@@ -45,7 +36,7 @@ class Emb2Seq_Model(nn.Module):
 
 		# words in the decoder vocab in order
 		# converted to the vocab idx for the transformer-xl
-		self.word_idx_in_order = [tokenizer.convert_tokens_to_ids([vocab.idx2word.get(idx)])[0] for idx in range(vocab.idx)]
+		self.word_idx_in_order = word_idx_in_order
 
 		self.encoder = encoder
 		self.decoder = decoder
@@ -62,7 +53,7 @@ class Emb2Seq_Model(nn.Module):
 
 	# given the generated sequence and memory from the previous step
 	# get the log probability distribution over the vocab by the transfomer-xl model 
-	def _get_trans_prob(self, result, batch_size, mem):
+	def _get_trans_prob(self, trans_model, result, batch_size, mem):
 
 		# get the idx (batch, seq_length) for the transformer
 		# only after the first 3 time step
@@ -93,7 +84,7 @@ class Emb2Seq_Model(nn.Module):
 		return context
 
 	# perform all-word WSD on the SemCor dataset
-	def forward(self, sentence, tagged_sent, definition, teacher_forcing_ratio = 0.4):
+	def forward(self, sentence, tagged_sent, definition, trans_model, teacher_forcing_ratio = 0.4):
 		
 		'''
 		teacher_forcing: the probability of using ground truth in decoding
@@ -151,7 +142,7 @@ class Emb2Seq_Model(nn.Module):
 			# only after the first 3 time step
 			if t > 3:
 				alpha = 0.5
-				trans_prob, mem = self._get_trans_prob(result, batch_size, mem)
+				trans_prob, mem = self._get_trans_prob(trans_model, result, batch_size, mem)
 				output = alpha * output + (1 - alpha) * trans_prob
 
 			# get the max word index from the vocabulary

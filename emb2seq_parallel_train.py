@@ -78,7 +78,9 @@ tokenizer = TransfoXLTokenizer.from_pretrained('./models/')
 # Load pre-trained model (weights)
 trans_model = TransfoXLLMHeadModel.from_pretrained('./models/')
 trans_model.eval()
-trans_model.to(device)
+
+# put on another GPU for memory issues
+trans_model.to(device = torch.device('cuda:2'))
 
 word_idx_in_order = [tokenizer.convert_tokens_to_ids([vocab.idx2word.get(idx)])[0] for idx in range(vocab.idx)]
 

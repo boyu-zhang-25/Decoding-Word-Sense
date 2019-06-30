@@ -58,26 +58,26 @@ class Emb2Seq_Model(nn.Module):
 		# get the idx (batch, seq_length) for the transformer
 		# only after the first 3 time step
 		context = self._get_trans_idx(result, batch_size)
-		with torch.no_grad():
-			if mem == -1:
-				# Predict all tokens
-				predictions, mems = trans_model(context)
-			else:
-				# We can re-use the memory cells in a subsequent call to attend a longer context
-				predictions, mems = trans_model(context, mems = mem)
+		if mem == -1:
+			# Predict all tokens
+			predictions, mems = trans_model(context)
+		else:
+			# We can re-use the memory cells in a subsequent call to attend a longer context
+			predictions, mems = trans_model(context, mems = mem)
 
 		# get the log probability for predicted last token
 		# for the subset vocab for our model
-		our_prediction = torch.zeros(batch_size, len(self.word_idx_in_order)).to(device)
+		our_prediction = torch.zeros(batch_size, len(self.word_idx_in_order)).to(torch.device('cuda:2'))
 		for our_idx, xl_idx in enumerate(self.word_idx_in_order):
 			our_prediction[:, our_idx] = predictions[:, -1, xl_idx]
 
+		# (batch_size, vocab)
 		return our_prediction, mems
 
 	# helper method: get the idx form of the current batch
 	# (batch, seq) for the transformer-xl
 	def _get_trans_idx(self, result, batch_size):
-		context = torch.zeros(batch_size, len(result), dtype = torch.long).to(device)
+		context = torch.zeros(batch_size, len(result), dtype = torch.long).to(torch.device('cuda:2'))
 		for b in range(batch_size):
 			for l in range(len(result)):
 				context[b, l] = self.word_idx_in_order[result[l][b].item()]
@@ -138,11 +138,20 @@ class Emb2Seq_Model(nn.Module):
 			# print(output.shape)
 			outputs[t] = output
 
-			# for the final word choice, using convex combination with the transformer-xl
+			# correct grammar for the final word choice
 			# only after the first 3 time step
 			if t > 3:
+
+				# inference only, saving mem
+				with torch.no_grad():
+
+					trans_prob, mem = self._get_trans_prob(trans_model, result, batch_size, mem)
+
+					# since trans-xl is on cuda 2, move it back to the default cuda
+					trans_prob = trans_prob.to(device)
+
+				# using convex combination with the transformer-xl
 				alpha = 0.5
-				trans_prob, mem = self._get_trans_prob(trans_model, result, batch_size, mem)
 				output = alpha * output + (1 - alpha) * trans_prob
 
 			# get the max word index from the vocabulary

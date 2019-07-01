@@ -78,4 +78,4 @@ def separate_from_graph(path):
 	torch.save(graph2seq_model.hyper_hypon_graph.state_dict(), './models/hyper_hypon_graph.pth')
 	torch.save(graph2seq_model.mer_holo_graph.state_dict(), './models/mer_holo_graph.pth')	
 
-# separate_from_graph('./graph2seq_best_model.pth')
+separate_from_graph('./models/graph2seq_best_model.pth')

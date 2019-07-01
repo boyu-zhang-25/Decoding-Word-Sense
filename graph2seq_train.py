@@ -128,8 +128,10 @@ graph2seq_model = Graph2Seq_Model(
 # randomly initialize the weights
 def init_weights(m):
     for name, param in m.named_parameters():
+        '''
         if param.requires_grad:
             print(name, param.shape)
+        '''
         nn.init.uniform_(param.data, -0.08, 0.08)  
 graph2seq_model.apply(init_weights)
 
@@ -137,12 +139,10 @@ graph2seq_model.apply(init_weights)
 graph2seq_model.to(device)
 
 # use pretrained checkpoint
-pretrain = True
-p1 = './models/hyper_hypon_graph.pth'
-p2 = './models/mer_holo_graph.pth'
+pretrain = False
+path = './models/graph2seq_best_model.pth'
 if pretrain:
-    graph2seq_model.hyper_hypon_graph.load_state_dict(torch.load(p1))
-    graph2seq_model.mer_holo_graph.load_state_dict(torch.load(p2))
+    graph2seq_model.load_state_dict(torch.load(path))
 
 
 # In[6]:
@@ -294,7 +294,7 @@ def write_result_to_file(arranged_all_sentence_result, all_definition):
 # train 
 import time
 
-N_EPOCHS = 20
+N_EPOCHS = 40
 CLIP = 1
 best_train_loss = float('inf')
 train_losses = []
@@ -317,7 +317,7 @@ for epoch in range(N_EPOCHS):
     if train_loss <= best_train_loss:
 
         best_train_loss = train_loss
-        torch.save(graph2seq_model.state_dict(), 'graph2seq_best_model.pth')
+        torch.save(graph2seq_model.state_dict(), './models/graph2seq_best_model.pth')
         
         # record the result
         write_result_to_file(arranged_all_sentence_result, all_definitions)

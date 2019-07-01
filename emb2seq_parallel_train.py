@@ -74,9 +74,9 @@ print('Device: {}'.format(device))
 from pytorch_pretrained_bert import TransfoXLTokenizer, TransfoXLModel, TransfoXLLMHeadModel
 
 # Load pre-trained model tokenizer (vocabulary from wikitext 103)
-tokenizer = TransfoXLTokenizer.from_pretrained('./models/')
+tokenizer = TransfoXLTokenizer.from_pretrained('transfo-xl-wt103')
 # Load pre-trained model (weights)
-trans_model = TransfoXLLMHeadModel.from_pretrained('./models/')
+trans_model = TransfoXLLMHeadModel.from_pretrained('transfo-xl-wt103')
 trans_model.eval()
 
 # put on another GPU for memory issues

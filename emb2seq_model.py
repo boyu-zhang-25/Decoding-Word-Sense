@@ -140,7 +140,7 @@ class Emb2Seq_Model(nn.Module):
 
 			# correct grammar for the final word choice
 			# only after the first 3 time step
-			if t > 3:
+			if t < 0:
 
 				# inference only, saving mem
 				with torch.no_grad():

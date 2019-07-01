@@ -113,8 +113,11 @@ class ChildSumGraphLSTM(RNNBase):
 		hidden_up = self.hidden_state[self.num_layers - 1]['up']
 		if self.bidirectional:
 			hidden_down = self.hidden_state[self.num_layers - 1]['down']
-			hidden_all = [torch.cat([hidden_up[key], hidden_down[key]])
-						  for key in self.hidden_state[self.num_layers - 1]['up'].keys()]
+
+			# return all the hidden states tagged with the synset
+			hidden_all = dict()
+			for key in self.hidden_state[self.num_layers - 1]['up'].keys():
+				hidden_all.update({key: torch.cat([hidden_up[key], hidden_down[key]])})
 
 			hidden_final = torch.cat([hidden_up[synset], hidden_down[synset]])
 			cell_final = torch.cat([self.cell_state[self.num_layers - 1]['up'][synset], self.cell_state[self.num_layers - 1]['down'][synset]])

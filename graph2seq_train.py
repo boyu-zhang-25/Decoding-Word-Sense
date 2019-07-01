@@ -125,17 +125,24 @@ graph2seq_model = Graph2Seq_Model(
     max_seq_length = max_seq_length, 
     decoder_hidden_size = decoder_hidden_size)
 
-# cuda
-graph2seq_model.to(device)
-
 # randomly initialize the weights
 def init_weights(m):
     for name, param in m.named_parameters():
         if param.requires_grad:
             print(name, param.shape)
-        nn.init.uniform_(param.data, -0.08, 0.08)
-        
+        nn.init.uniform_(param.data, -0.08, 0.08)  
 graph2seq_model.apply(init_weights)
+
+# cuda
+graph2seq_model.to(device)
+
+# use pretrained checkpoint
+pretrain = True
+p1 = './models/hyper_hypon_graph.pth'
+p2 = './models/mer_holo_graph.pth'
+if pretrain:
+    graph2seq_model.hyper_hypon_graph.load_state_dict(torch.load(p1))
+    graph2seq_model.mer_holo_graph.load_state_dict(torch.load(p2))
 
 
 # In[6]:

@@ -55,21 +55,23 @@ class Emb2Seq_Model(nn.Module):
 	# get the log probability distribution over the vocab by the transfomer-xl model 
 	def _get_trans_prob(self, trans_model, result, batch_size, mem):
 
-		# get the idx (batch, seq_length) for the transformer
-		# only after the first 3 time step
-		context = self._get_trans_idx(result, batch_size)
-		if mem == -1:
-			# Predict all tokens
-			predictions, mems = trans_model(context)
-		else:
-			# We can re-use the memory cells in a subsequent call to attend a longer context
-			predictions, mems = trans_model(context, mems = mem)
+		with torch.no_grad():
 
-		# get the log probability for predicted last token
-		# for the subset vocab for our model
-		our_prediction = torch.zeros(batch_size, len(self.word_idx_in_order)).to(torch.device('cuda:2'))
-		for our_idx, xl_idx in enumerate(self.word_idx_in_order):
-			our_prediction[:, our_idx] = predictions[:, -1, xl_idx]
+			# get the idx (batch, seq_length) for the transformer
+			# only after the first 3 time step
+			context = self._get_trans_idx(result, batch_size)
+			if mem == -1:
+				# Predict all tokens
+				predictions, mems = trans_model(context)
+			else:
+				# We can re-use the memory cells in a subsequent call to attend a longer context
+				predictions, mems = trans_model(context, mems = mem)
+
+			# get the log probability for predicted last token
+			# for the subset vocab for our model
+			our_prediction = torch.zeros(batch_size, len(self.word_idx_in_order)).to(torch.device(device))
+			for our_idx, xl_idx in enumerate(self.word_idx_in_order):
+				our_prediction[:, our_idx] = predictions[:, -1, xl_idx]
 
 		# (batch_size, vocab)
 		return our_prediction, mems
@@ -77,10 +79,11 @@ class Emb2Seq_Model(nn.Module):
 	# helper method: get the idx form of the current batch
 	# (batch, seq) for the transformer-xl
 	def _get_trans_idx(self, result, batch_size):
-		context = torch.zeros(batch_size, len(result), dtype = torch.long).to(torch.device('cuda:2'))
-		for b in range(batch_size):
-			for l in range(len(result)):
-				context[b, l] = self.word_idx_in_order[result[l][b].item()]
+		with torch.no_grad():
+			context = torch.zeros(batch_size, len(result), dtype = torch.long).to(torch.device(device))
+			for b in range(batch_size):
+				for l in range(len(result)):
+					context[b, l] = self.word_idx_in_order[result[l][b].item()]
 		return context
 
 	# perform all-word WSD on the SemCor dataset
@@ -140,7 +143,7 @@ class Emb2Seq_Model(nn.Module):
 
 			# correct grammar for the final word choice
 			# only after the first 3 time step
-			if t < 0:
+			if t > 3:
 
 				# inference only, saving mem
 				with torch.no_grad():
@@ -148,7 +151,7 @@ class Emb2Seq_Model(nn.Module):
 					trans_prob, mem = self._get_trans_prob(trans_model, result, batch_size, mem)
 
 					# since trans-xl is on cuda 2, move it back to the default cuda
-					trans_prob = trans_prob.to(device)
+					# trans_prob = trans_prob.to(device)
 
 				# using convex combination with the transformer-xl
 				alpha = 0.5

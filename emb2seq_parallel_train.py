@@ -52,7 +52,7 @@ with open('./data/vocab.pkl', 'rb') as f:
 # In[4]:
 
 # some hyperparameters
-max_seq_length = 15
+max_seq_length = 17
 decoder_hidden_size = 256
 
 decoder = Decoder(
@@ -80,7 +80,7 @@ trans_model = TransfoXLLMHeadModel.from_pretrained('transfo-xl-wt103')
 trans_model.eval()
 
 # put on another GPU for memory issues
-trans_model.to(device = torch.device('cuda:2'))
+trans_model.to(device = torch.device(device))
 
 word_idx_in_order = [tokenizer.convert_tokens_to_ids([vocab.idx2word.get(idx)])[0] for idx in range(vocab.idx)]
 
@@ -217,7 +217,8 @@ def train(model, optimizer, corpus, criterion, clip):
 	model.train()
 	epoch_loss = 0
 	sentence_num = 0
-	
+	i = 0
+
 	for sub_corpus in corpus:
 	
 		for sent in sub_corpus:
@@ -275,6 +276,11 @@ def train(model, optimizer, corpus, criterion, clip):
 
 				optimizer.step()
 				epoch_loss += loss.item()
+				
+		# keep track of progress
+		i += 1
+		if i % 10 == 0:
+			print("[{}/{}] subcorpus done.".format(i, len(corpus)))
 				
 	return epoch_loss / sentence_num
 
@@ -435,9 +441,9 @@ for epoch in range(N_EPOCHS):
 		# record the result
 		write_result_to_file(arranged_all_sentence_result, all_definitions)
 	
-	print(f'Epoch: {epoch+1:02} | Time: {epoch_mins}m {epoch_secs}s')
-	print(f'\tTrain Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f}')
-	print(f'\t Val. Loss: {valid_loss:.3f} |  Val. PPL: {math.exp(valid_loss):7.3f}')
+	print('Epoch: {0:02} | Time: {}m {}s'.format(epoch+1, epoch_mins, epoch_secs))
+	print('\tTrain Loss: {0:.3f} | Train PPL: {0:7.3f}'.format(train_loss, math.exp(train_loss)))
+	print('\t Val. Loss: {0:.3f} |  Val. PPL: {0:7.3f}'.format(valid_loss, math.exp(valid_loss)))
 
 
 # In[15]:

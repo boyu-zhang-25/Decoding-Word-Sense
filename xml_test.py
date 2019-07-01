@@ -6,7 +6,14 @@ import time
 corpus = tree.getroot()
 
 sentence_num = 0
-for text in corpus[150:170]:
+i = 0
+for text in corpus:
+
+	i += 1
+	if i % 10 == 0:
+		print("[{}/{}] subcorpus done.".format(i, len(corpus)))
+
+	'''
 	sentence_num += len(text)
 	for sentence in text:
 
@@ -18,7 +25,7 @@ for text in corpus[150:170]:
 			# get all-word definitions, batch_size is the sentence length
 			# [batch_size, self.max_length]
 			print([instance.text for instance in sentence])
-
+	'''
 print(sentence_num)
 
 

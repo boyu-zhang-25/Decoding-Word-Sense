@@ -1,0 +1,8 @@
+gcloud compute scp --project word-sense --zone us-west1-b --recurse <local file or directory> word-sense-vm:~/
+
+gcloud compute ssh --project word-sense --zone us-west1-b word-sense-vm -- -L 8080:localhost:8080
+
+gcloud auth list
+
+gcloud config set account bzhang25@u.rochester.edu
+gcloud config set account mentalhealthur@gmail.com

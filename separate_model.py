@@ -4,7 +4,8 @@ from graph_lstm import *
 from decoder import *
 from graph2seq_model import *
 
-def separate_decoder_from_graph(path):
+# separate the decoder and grapsh from pretraining graph
+def separate_from_graph(path):
 
 	# get the decoder vocab
 	with open('./data/vocab.pkl', 'rb') as f:
@@ -65,12 +66,16 @@ def separate_decoder_from_graph(path):
 		vocab = vocab, 
 		max_seq_length = max_seq_length, 
 		decoder_hidden_size = decoder_hidden_size)
-	print(graph2seq_model.decoder.state_dict())
+	# print(graph2seq_model.decoder.state_dict())
 
 	graph2seq_model.load_state_dict(torch.load(path))
-	print(graph2seq_model.decoder.state_dict())
+	# print(graph2seq_model.decoder.state_dict())
 
 	# separate the decoder
 	torch.save(graph2seq_model.decoder.state_dict(), './models/decoder.pth')
 
-separate_decoder_from_graph('./graph2seq_best_model.pth')
+	# separate the two graph lstms
+	torch.save(graph2seq_model.hyper_hypon_graph.state_dict(), './models/hyper_hypon_graph.pth')
+	torch.save(graph2seq_model.mer_holo_graph.state_dict(), './models/mer_holo_graph.pth')	
+
+# separate_from_graph('./graph2seq_best_model.pth')

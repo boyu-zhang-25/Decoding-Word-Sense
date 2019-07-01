@@ -276,7 +276,7 @@ def train(model, optimizer, corpus, criterion, clip):
 
 				optimizer.step()
 				epoch_loss += loss.item()
-				
+
 		# keep track of progress
 		i += 1
 		if i % 10 == 0:
@@ -441,9 +441,9 @@ for epoch in range(N_EPOCHS):
 		# record the result
 		write_result_to_file(arranged_all_sentence_result, all_definitions)
 	
-	print('Epoch: {0:02} | Time: {}m {}s'.format(epoch+1, epoch_mins, epoch_secs))
-	print('\tTrain Loss: {0:.3f} | Train PPL: {0:7.3f}'.format(train_loss, math.exp(train_loss)))
-	print('\t Val. Loss: {0:.3f} |  Val. PPL: {0:7.3f}'.format(valid_loss, math.exp(valid_loss)))
+	print('Epoch: {:02} | Time: {}m {}s'.format(epoch + 1, epoch_mins, epoch_secs))
+	print('\tTrain Loss: {:.3f} | Train PPL: {:7.3f}'.format(train_loss, math.exp(train_loss)))
+	print('\t Val. Loss: {:.3f} |  Val. PPL: {:7.3f}'.format(valid_loss, math.exp(valid_loss)))
 
 
 # In[15]:

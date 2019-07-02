@@ -143,6 +143,7 @@ class Emb2Seq_Model(nn.Module):
 
 			# correct grammar for the final word choice
 			# only after the first 3 time step
+			'''
 			if t > 3:
 
 				# inference only, saving mem
@@ -156,6 +157,7 @@ class Emb2Seq_Model(nn.Module):
 				# using convex combination with the transformer-xl
 				alpha = 0.5
 				output = alpha * output + (1 - alpha) * trans_prob
+			'''
 
 			# get the max word index from the vocabulary
 			_, generated_index = torch.max(output, dim = 1)

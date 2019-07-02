@@ -70,6 +70,10 @@ encoder = Encoder(elmo_class = elmo)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print('Device: {}'.format(device))
 
+word_idx_in_order = None
+trans_model = None
+
+'''
 # the auxiliary transformer-xl for the decoder grammar
 from pytorch_pretrained_bert import TransfoXLTokenizer, TransfoXLModel, TransfoXLLMHeadModel
 
@@ -83,6 +87,7 @@ trans_model.eval()
 trans_model.to(device = torch.device(device))
 
 word_idx_in_order = [tokenizer.convert_tokens_to_ids([vocab.idx2word.get(idx)])[0] for idx in range(vocab.idx)]
+'''
 
 # create the model instance
 emb2seq_model = Emb2Seq_Model(

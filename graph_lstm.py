@@ -15,9 +15,6 @@ else:
 from nltk.corpus import wordnet as wn
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# test graph print
-old_depth = 2
-
 class ChildSumGraphLSTM(RNNBase):
 	"""A bidirectional extension of child-sum tree LSTMs that work on graphs
 	For each node, the embedding is calculated recursively by LSTM 

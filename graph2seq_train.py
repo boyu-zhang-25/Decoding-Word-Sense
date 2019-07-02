@@ -79,8 +79,8 @@ if torch.cuda.device_count() > 1:
 max_seq_length = 20
 decoder_hidden_size = 256
 decoder_input_size = 512
-mer_holo_depth = 4
-hyper_hypon_depth = 4
+mer_holo_depth = 5
+hyper_hypon_depth = 5
 
 # set the hyper-hypon and mer-holo graph lstms
 hyper_hypon_graph = ChildSumGraphLSTM_WordNet(

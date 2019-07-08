@@ -158,7 +158,7 @@ class ChildSumGraphLSTM(RNNBase):
 		# layer in this direction, if so short circuit the rest of
 		# this function and return that result
 		# very useful in cyclic graphs
-		if synset in self.hidden_state[layer][direction] and synset not in self.explored:
+		if synset in self.hidden_state[layer][direction]:
 
 			# print('{}short-circuit synset: {}; direction: {}\n'.format('    ' * (old_depth - depth), synset, direction))
 			h_t = self.hidden_state[layer][direction][synset]

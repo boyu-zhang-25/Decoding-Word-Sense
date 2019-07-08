@@ -72,7 +72,7 @@ def build_vocab_synset():
 # those only appears in the SemCor dataset
 def build_vocab_synset_SemCor():
 
-	target_file = open("../WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.gold.key.txt", "r")
+	target_file = open("../../WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.gold.key.txt", "r")
 
 	# Create a vocab wrapper and add some special tokens.
 	vocab = Vocabulary()
@@ -89,7 +89,7 @@ def build_vocab_synset_SemCor():
 		vocab.add_word(synset)
 
 	# add SemEval synsets
-	semeval_file = open("../WSD_Evaluation_Framework/Evaluation_Datasets/semeval2007/semeval2007.gold.key.txt", "r")
+	semeval_file = open("../../WSD_Evaluation_Framework/Evaluation_Datasets/semeval2007/semeval2007.gold.key.txt", "r")
 	for line in semeval_file:
 		key = line.replace('\n', '').split(' ')[-1]
 		synset = wn.lemma_from_key(key).synset()
@@ -104,7 +104,7 @@ def build_vocab_decoder_SemCor(threshold):
 	
 	# Create a vocab wrapper and add some special tokens.
 	counter = Counter()
-	target_file = open("../WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.gold.key.txt", "r")
+	target_file = open("../../WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.gold.key.txt", "r")
 
 	# iterate through all definitions in the SemCor
 	for line in target_file:
@@ -117,7 +117,7 @@ def build_vocab_decoder_SemCor(threshold):
 		counter.update(def_tokens)
 
 	# add SemEval synsets
-	semeval_file = open("../WSD_Evaluation_Framework/Evaluation_Datasets/semeval2007/semeval2007.gold.key.txt", "r")
+	semeval_file = open("../../WSD_Evaluation_Framework/Evaluation_Datasets/semeval2007/semeval2007.gold.key.txt", "r")
 	for line in semeval_file:
 		key = line.replace('\n', '').split(' ')[-1]
 		synset = wn.lemma_from_key(key).synset()
@@ -202,7 +202,7 @@ def main(args):
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 
-	parser.add_argument('--vocab_path', type = str, default = './data/vocab.pkl', 
+	parser.add_argument('--vocab_path', type = str, default = '../data/vocab.pkl', 
 						help = 'path for saving vocabulary wrapper')
 	parser.add_argument('--threshold', type = int, default = 0, 
 						help = 'minimum word count threshold')

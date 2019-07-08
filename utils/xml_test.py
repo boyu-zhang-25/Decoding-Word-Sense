@@ -1,5 +1,5 @@
 import xml.etree.ElementTree as ET
-tree = ET.parse('../WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.data.xml')
+tree = ET.parse('../../WSD_Evaluation_Framework/Training_Corpora/SemCor/semcor.data.xml')
 from nltk.corpus import wordnet as wn
 import time
 import math

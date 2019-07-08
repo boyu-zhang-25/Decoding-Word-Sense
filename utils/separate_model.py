@@ -1,19 +1,22 @@
 import torch
 import pickle
-from graph_lstm import *
-from decoder import *
-from graph2seq_model import *
+import sys
+sys.path.append('..')
+# print(sys.path)
+import graph_lstm 
+import decoder
+import graph2seq_model 
 
 # separate the decoder and grapsh from pretraining graph
 def separate_from_graph(path):
 
 	# get the decoder vocab
-	with open('./data/vocab.pkl', 'rb') as f:
+	with open('../data/vocab.pkl', 'rb') as f:
 		vocab = pickle.load(f)
 		print("Size of vocab: {}".format(vocab.idx))
 		
 	# get the graph lstm synset vocab
-	with open('./data/synset_vocab.pkl', 'rb') as f:
+	with open('../data/synset_vocab.pkl', 'rb') as f:
 		synset_vocab = pickle.load(f)
 	print("Size of synset vocab: {}".format(synset_vocab.idx))
 
@@ -72,10 +75,10 @@ def separate_from_graph(path):
 	# print(graph2seq_model.decoder.state_dict())
 
 	# separate the decoder
-	torch.save(graph2seq_model.decoder.state_dict(), './models/decoder.pth')
+	torch.save(graph2seq_model.decoder.state_dict(), '../models/decoder.pth')
 
 	# separate the two graph lstms
-	torch.save(graph2seq_model.hyper_hypon_graph.state_dict(), './models/hyper_hypon_graph.pth')
-	torch.save(graph2seq_model.mer_holo_graph.state_dict(), './models/mer_holo_graph.pth')	
+	torch.save(graph2seq_model.hyper_hypon_graph.state_dict(), '../models/hyper_hypon_graph.pth')
+	torch.save(graph2seq_model.mer_holo_graph.state_dict(), '../models/mer_holo_graph.pth')	
 
-separate_from_graph('./models/graph2seq_best_model.pth')
+separate_from_graph('../models/graph2seq_best_model.pth')

@@ -103,7 +103,7 @@ class ChildSumGraphLSTM(RNNBase):
 
 			# get the new node embedding by all its hypers and hypons
 			# start with hyper
-			self._upward_downward(layer, 'up', synset, depth, None)
+			self._upward_downward(layer, 'up', synset, depth, {'up': False, 'down': False})
 
 		# convert '__' to '.' due to hashing
 		synset = synset.replace('.', '__')
@@ -111,24 +111,18 @@ class ChildSumGraphLSTM(RNNBase):
 		# the hidden states of all connected hyper and hypons during the recursion
 		# the final hidden state and cell state of the current synset
 		hidden_up = self.hidden_state[self.num_layers - 1]['up']
-		if self.bidirectional:
-			hidden_down = self.hidden_state[self.num_layers - 1]['down']
+		hidden_down = self.hidden_state[self.num_layers - 1]['down']
 
-			# return all the hidden states tagged with the synset
-			hidden_all = dict()
-			# print(len(self.hidden_state[self.num_layers - 1]['up'].keys()))
-			# print(len(self.hidden_state[self.num_layers - 1]['down'].keys()))
+		# return all the hidden states tagged with the synset
+		hidden_all = dict()
+		# print(len(self.hidden_state[self.num_layers - 1]['up'].keys()))
+		# print(len(self.hidden_state[self.num_layers - 1]['down'].keys()))
 
-			for key in self.hidden_state[self.num_layers - 1]['up'].keys():
-				hidden_all.update({key: torch.cat([hidden_up[key], hidden_down[key]])})
+		for key in self.hidden_state[self.num_layers - 1]['up'].keys():
+			hidden_all.update({key: torch.cat([hidden_up[key], hidden_down[key]])})
 
-			hidden_final = torch.cat([hidden_up[synset], hidden_down[synset]])
-			cell_final = torch.cat([self.cell_state[self.num_layers - 1]['up'][synset], self.cell_state[self.num_layers - 1]['down'][synset]])
-
-		else:
-			hidden_all = [hidden_up[key] for key in self.hidden_state[self.num_layers - 1]['up'].keys()]
-			hidden_final = hidden_up[synset]
-			cell_final = self.cell_state[self.num_layers - 1]['up'][synset]
+		hidden_final = torch.cat([hidden_up[synset], hidden_down[synset]])
+		cell_final = torch.cat([self.cell_state[self.num_layers - 1]['up'][synset], self.cell_state[self.num_layers - 1]['down'][synset]])
 
 		''''
 		support mini-batch? 
@@ -149,15 +143,19 @@ class ChildSumGraphLSTM(RNNBase):
 	find all its hyper/hypon embeddings recursively (in _construct_previous)
 	calculate the new embedding by the LSTM gates
 	'''
-	def _upward_downward(self, layer, direction, synset, depth, parent):
+	def _upward_downward(self, layer, direction, synset, depth, explored):
 
 		# convert '__' to '.' due to hashing
 		synset = synset.replace('.', '__')
 
+		# 'explored' dictionary is used to monitor priority of the node
+		# since the same node may by visited twice
+		# allow over-writing on specific direction
+		explored[direction] = True
+
 		# check to see whether this node has been computed on this
 		# layer in this direction, if so short circuit the rest of
-		# this function and return that result
-		# very useful in cyclic graphs
+		'''
 		if synset in self.hidden_state[layer][direction]:
 
 			# print('{}short-circuit synset: {}; direction: {}\n'.format('    ' * (old_depth - depth), synset, direction))
@@ -165,6 +163,7 @@ class ChildSumGraphLSTM(RNNBase):
 			c_t = self.cell_state[layer][direction][synset]
 
 			return h_t, c_t
+		'''
 
 		# get the current node x_t from the embedding
 		x_t = self._construct_x_t(layer, synset)
@@ -174,7 +173,7 @@ class ChildSumGraphLSTM(RNNBase):
 		# h_prev, c_prev: (hidden_size, num_hyper/num_hypon)
 		# convert '__' to '.' due to hashing
 		synset = synset.replace('__', '.')
-		oidx, (h_prev, c_prev) = self._construct_previous(layer, direction, synset, depth - 1, parent)
+		oidx, (h_prev, c_prev) = self._construct_previous(layer, direction, synset, depth - 1, explored)
 
 		# broadcasting and cast the tensor size 
 		# to calculate all the LSTM gates
@@ -220,20 +219,20 @@ class ChildSumGraphLSTM(RNNBase):
 			c_t = dropout(c_t)
 
 		# store h and c for the new synset embeddings
-		# improve efficiency when short-circuit
-		# convert '.' back to '__' due to hashing
+		# allow overwrite by parents
 		synset = synset.replace('.', '__')
-
 		self.hidden_state[layer][direction][synset] = h_t
 		self.cell_state[layer][direction][synset] = c_t
 
 		# if bidirectional, get the embeddings of the opposite direction
-		# if already calculated, it will be short-circuit at the beginning of this method
-		if self.bidirectional:
-			if direction == 'up':
-				self._upward_downward(layer, 'down', synset, depth, parent)
-			else:
-				self._upward_downward(layer, 'up', synset, depth, parent)
+		# otherwise, stop the recursion
+		if explored['up'] == True and explored['down'] == False:
+			self._upward_downward(layer, 'down', synset, depth, explored)
+		elif explored['up'] == False and explored['down'] == True:
+			self._upward_downward(layer, 'up', synset, depth, explored)
+		elif explored['up'] == False and explored['up'] == False:
+			print('both direction not explored')
+			raise NotImplementedError
 
 		# (hidden_size)
 		return h_t, c_t
@@ -268,7 +267,7 @@ class ChildSumGraphLSTM(RNNBase):
 	recursively find all its hyper or hypon embeddings
 	limited to the max recursion depth
 	'''
-	def _construct_previous(self, layer, direction, synset, depth, parent):
+	def _construct_previous(self, layer, direction, synset, depth, explored):
 
 		# if hit the max recursion depth
 		# return as if it has no more hyper/hypon
@@ -300,10 +299,6 @@ class ChildSumGraphLSTM(RNNBase):
 			print('Lexical Relationship Not Supported!')
 			raise NotImplementedError
 
-		# remove explored path
-		if parent in oidx:
-			oidx.remove(parent)
-			# print('removed: '.format(parent))
 		# print(oidx)
 		# print('\n')					
 
@@ -316,7 +311,7 @@ class ChildSumGraphLSTM(RNNBase):
 				# print('{}{}:'.format('    ' * (old_depth - depth), i))
 				# get the h and c for each hyper/hypon
 				# (hidden_size)
-				h_prev_i, c_prev_i = self._upward_downward(layer, direction, i, depth, synset)
+				h_prev_i, c_prev_i = self._upward_downward(layer, direction, i, depth, {'up': False, 'down': False})
 				h_prev.append(h_prev_i)
 				c_prev.append(c_prev_i)
 
@@ -343,7 +338,7 @@ class ChildSumGraphLSTM_WordNet(ChildSumGraphLSTM):
 		# find the x_t
 		# when at stacked layer, the input is the previous hidden states (maybe concat when bidirectional)
 		# otherwise, x_t comes from the sense embedding
-		if layer > 0 and self.bidirectional:
+		if layer > 0:
 
 			'''
 			# if the previous step did not calculate the hyper
@@ -354,9 +349,6 @@ class ChildSumGraphLSTM_WordNet(ChildSumGraphLSTM):
 			'''
 
 			x_t = torch.cat([self.hidden_state[layer - 1]['up'][synset], self.hidden_state[layer - 1]['down'][synset]])
-
-		elif layer > 0:
-			x_t = self.hidden_state[layer - 1]['up'][synset]
 		else:
 
 			# get the synset (sense) embedding
@@ -390,17 +382,22 @@ def main():
 		bidirectional = True, 
 		bias = True)
 
-	dog = wn.synset('dog.n.01').name()
-	tree = wn.synset('tree.n.01').name()
-	atom = wn.synset('atom.n.01').name()
+	org = wn.synset('organism.n.01').name()
+	worker = wn.synset('worker.n.01').name()
+	person = wn.synset('person.n.01').name()
 	genus = wn.synset('genus.n.02').name()
+	ins = wn.synset('instrumentality.n.03').name()
+	synset_list = [org, worker, person, genus, ins]
 
 	start_time = time.time()
 
 	# iterate through all synsets in the WN
-	hidden_all, (hidden_final, cell_final) = graph(genus, depth = 4)
-	print(len(hidden_all.keys()))
-	# print(hidden_final.shape, cell_final.shape)
+	with torch.no_grad():
+		for syn in synset_list:
+			print(syn)
+			hidden_all, (hidden_final, cell_final) = graph(syn, depth = 4)
+			print(len(hidden_all.keys()))
+			# print(hidden_final.shape, cell_final.shape)
 
 	end_time = time.time()
 	print('time: {}'.format((end_time - start_time)))

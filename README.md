@@ -8,7 +8,7 @@ Code for the paper *Decoding Word Sense with Graphical Embedding*
 
 [The Formal And CompuTational Semantics lab (FACTS.lab)](http://factslab.io/)
 
-University of Rochester, Spring 2019
+University of Rochester, Fall 2019
 
 # Work in Progress
 

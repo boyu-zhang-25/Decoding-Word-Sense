@@ -6,3 +6,6 @@ gcloud auth list
 
 gcloud config set account bzhang25@u.rochester.edu
 gcloud config set account mentalhealthur@gmail.com
+
+gcloud compute instances list --project word-sense
+gcloud compute instances describe example-instance
